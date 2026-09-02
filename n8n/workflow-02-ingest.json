@@ -1,0 +1,180 @@
+{
+  "name": "02 - Knowledge Ingestion",
+  "nodes": [
+    {
+      "id": "node-webhook-ingest",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 300],
+      "parameters": {
+        "path": "ingest",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "node-extract-input-ingest",
+      "name": "Extract Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [320, 300],
+      "parameters": {
+        "mode": "manual",
+        "fields": {
+          "values": [
+            { "name": "file_url",     "type": "string", "value": "={{ $json.body.file_url }}" },
+            { "name": "file_name",    "type": "string", "value": "={{ $json.body.file_name }}" },
+            { "name": "document_id",  "type": "string", "value": "={{ $json.body.document_id }}" }
+          ]
+        },
+        "include": "none"
+      }
+    },
+    {
+      "id": "node-download-file",
+      "name": "Download File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [540, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.file_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Service" }
+      }
+    },
+    {
+      "id": "node-chunk-text",
+      "name": "Chunk Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "parameters": {
+        "jsCode": "// Split document text into overlapping chunks for embedding\nconst rawText = $json.data || $json.body || '';\nconst documentId = $('Extract Input').first().json.document_id;\n\nconst CHUNK_SIZE = 500;\nconst OVERLAP = 50;\n\n// Normalise whitespace\nconst text = String(rawText).replace(/\\r\\n/g, '\\n').replace(/[ \\t]+/g, ' ').trim();\n\nif (!text || text.length === 0) {\n  throw new Error('Downloaded file appears to be empty. Check the file_url and Supabase Storage permissions.');\n}\n\nconst chunks = [];\nlet startIndex = 0;\nlet chunkIndex = 0;\n\nwhile (startIndex < text.length) {\n  let end = startIndex + CHUNK_SIZE;\n\n  // Try to break at a sentence boundary or whitespace to avoid cutting mid-word\n  if (end < text.length) {\n    const breakPoint = text.lastIndexOf(' ', end);\n    if (breakPoint > startIndex + CHUNK_SIZE * 0.5) {\n      end = breakPoint;\n    }\n  } else {\n    end = text.length;\n  }\n\n  const content = text.slice(startIndex, end).trim();\n\n  if (content.length > 0) {\n    chunks.push({\n      json: {\n        chunk_index: chunkIndex,\n        content,\n        document_id: documentId\n      }\n    });\n    chunkIndex++;\n  }\n\n  // Advance with overlap so context is preserved across chunk boundaries\n  startIndex = end - OVERLAP;\n  if (startIndex <= 0) startIndex = end; // safety: prevent infinite loop\n}\n\nif (chunks.length === 0) {\n  throw new Error('Text chunking produced 0 chunks. The document may be too short or empty.');\n}\n\nreturn chunks;"
+      }
+    },
+    {
+      "id": "node-split-batches",
+      "name": "Loop Over Chunks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [980, 300],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "node-embed-chunk",
+      "name": "Embed Chunk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.jina.ai/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'jina-embeddings-v3', task: 'retrieval.passage', dimensions: 1024, input: [$json.content] }) }}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Jina AI" }
+      }
+    },
+    {
+      "id": "node-save-pgvector",
+      "name": "Save to pgvector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1420, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_SUPABASE_URL/rest/v1/knowledge_chunks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ document_id: $('Loop Over Chunks').item.json.document_id, chunk_index: $('Loop Over Chunks').item.json.chunk_index, content: $('Loop Over Chunks').item.json.content, embedding: $json.data[0].embedding }) }}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        },
+        "headers": {
+          "parameters": [
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Service" }
+      }
+    },
+    {
+      "id": "node-respond-webhook-ingest",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1200, 440],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, document_id: $('Extract Input').first().json.document_id, file_name: $('Extract Input').first().json.file_name, chunks_processed: $('Chunk Text').all().length }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Extract Input", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Input": {
+      "main": [
+        [{ "node": "Download File", "type": "main", "index": 0 }]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [{ "node": "Chunk Text", "type": "main", "index": 0 }]
+      ]
+    },
+    "Chunk Text": {
+      "main": [
+        [{ "node": "Loop Over Chunks", "type": "main", "index": 0 }]
+      ]
+    },
+    "Loop Over Chunks": {
+      "main": [
+        [{ "node": "Embed Chunk", "type": "main", "index": 0 }],
+        [{ "node": "Respond to Webhook", "type": "main", "index": 0 }]
+      ]
+    },
+    "Embed Chunk": {
+      "main": [
+        [{ "node": "Save to pgvector", "type": "main", "index": 0 }]
+      ]
+    },
+    "Save to pgvector": {
+      "main": [
+        [{ "node": "Loop Over Chunks", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

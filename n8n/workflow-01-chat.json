@@ -1,0 +1,215 @@
+{
+  "name": "01 - Chat AI Coach",
+  "nodes": [
+    {
+      "id": "w1-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 300],
+      "parameters": {
+        "path": "chat",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "w1-extract",
+      "name": "Extract Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [320, 300],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "message",    "value": "={{ $json.body.message }}",                         "type": "string" },
+            { "id": "a2", "name": "session_id", "value": "={{ $json.body.session_id || 'session-' + Date.now() }}", "type": "string" },
+            { "id": "a3", "name": "topic",      "value": "={{ $json.body.topic || 'general' }}",               "type": "string" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w1-customers",
+      "name": "Query Customer Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [540, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://YOUR_SUPABASE_URL/rest/v1/customers?select=name,treatment,status,amount_spent,last_visit,rebooked,satisfaction_score&limit=20&order=last_visit.desc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w1-jina",
+      "name": "Jina Embed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.jina.ai/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_JINA_API_KEY" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'jina-embeddings-v3', task: 'retrieval.query', dimensions: 1024, input: [$('Extract Input').first().json.message] }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "w1-pgvector",
+      "name": "Search Knowledge Base",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [980, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_SUPABASE_URL/rest/v1/rpc/match_knowledge_chunks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query_embedding: $json.data[0].embedding, match_count: 5 }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "w1-build-prompt",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300],
+      "parameters": {
+        "jsCode": "// Safely retrieve data from all upstream nodes\nconst input      = $('Extract Input').first().json;\nconst customers  = $('Query Customer Data').all().map(i => i.json);\nconst knowledge  = (() => { try { return $('Search Knowledge Base').all().map(i => i.json); } catch(e) { return []; } })();\n\nconst message    = input.message    || '';\nconst session_id = input.session_id || 'session-' + Date.now();\nconst topic      = input.topic      || 'general';\n\n// ── Customer stats ──────────────────────────────────────────────────────────\nconst total     = customers.length;\nconst revenue   = customers.reduce((s, c) => s + (parseFloat(c.amount_spent) || 0), 0);\nconst rebooked  = customers.filter(c => c.rebooked === true || c.rebooked === 'true').length;\nconst avgSat    = total > 0\n  ? (customers.reduce((s, c) => s + (parseFloat(c.satisfaction_score) || 0), 0) / total).toFixed(1)\n  : 'N/A';\n\nconst treatments = {};\ncustomers.forEach(c => { treatments[c.treatment || 'Unknown'] = (treatments[c.treatment || 'Unknown'] || 0) + 1; });\nconst treatList = Object.entries(treatments).map(([k, v]) => `  • ${k}: ${v} clients`).join('\\n');\n\nconst topCustomers = customers.slice(0, 8)\n  .map(c => `  - ${c.name}: ${c.treatment}, $${c.amount_spent}, last visit: ${c.last_visit}, rebooked: ${c.rebooked ? 'Yes' : 'No'}, satisfaction: ${c.satisfaction_score}`)\n  .join('\\n');\n\nconst customerContext = total > 0\n  ? `CUSTOMER DATA (${total} records):\n• Revenue total: $${revenue.toFixed(2)} | Rebook rate: ${((rebooked/total)*100).toFixed(1)}% | Avg satisfaction: ${avgSat}\n• Treatment breakdown:\n${treatList}\n\nRecent customers:\n${topCustomers}`\n  : 'No customer records yet. Seed the database to enable data-driven coaching.';\n\n// ── Knowledge base context ───────────────────────────────────────────────────\nconst kbContext = knowledge.length > 0\n  ? 'KNOWLEDGE BASE:\\n' + knowledge.map((c, i) => `[${i+1}] ${c.content || ''}`).join('\\n\\n')\n  : 'No knowledge documents uploaded yet.';\n\n// ── Topic instructions ───────────────────────────────────────────────────────\nconst topics = {\n  retention:  'Analyse rebook rates and satisfaction scores. Give specific retention strategies and follow-up recommendations.',\n  sales:      'Analyse conversion rates and revenue data. Give actionable sales coaching and objection-handling advice.',\n  knowledge:  'Reference clinic documents, SOPs, and policies to answer operational questions.',\n  general:    'Provide holistic business coaching using all available data.'\n};\nconst topicGuide = topics[topic] || topics.general;\n\nconst system_prompt = `You are an expert AI Business Coach for an aesthetic clinic owner.\nFocus: ${topic.toUpperCase()} — ${topicGuide}\n\n${customerContext}\n\n${kbContext}\n\nRules:\n- Be SPECIFIC. Reference actual customer names, numbers, and percentages.\n- Give 2-3 concrete, actionable next steps at the end.\n- Be concise (150-350 words). Professional but warm tone.`;\n\nreturn [{ json: { message, session_id, topic, system_prompt } }];"
+      }
+    },
+    {
+      "id": "w1-deepseek",
+      "name": "Ask DeepSeek",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1420, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_DEEPSEEK_API_KEY" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: $json.system_prompt }, { role: 'user', content: $json.message }], temperature: 0.7, max_tokens: 800 }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "w1-extract-resp",
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 300],
+      "parameters": {
+        "jsCode": "const ds = $json;\nconst prev = $('Build AI Prompt').first().json;\nconst ai_response = ds?.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';\nreturn [{ json: { ai_response, session_id: prev.session_id, user_message: prev.message, topic: prev.topic } }];"
+      }
+    },
+    {
+      "id": "w1-save",
+      "name": "Save Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_SUPABASE_URL/rest/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ session_id: $json.session_id, role: 'user', content: $json.user_message }, { session_id: $json.session_id, role: 'assistant', content: $json.ai_response }]) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "w1-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2080, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ response: $('Extract Response').first().json.ai_response, session_id: $('Extract Response').first().json.session_id, topic: $('Extract Response').first().json.topic }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Extract Input",       "type": "main", "index": 0 }]]
+    },
+    "Extract Input": {
+      "main": [[{ "node": "Query Customer Data",  "type": "main", "index": 0 }]]
+    },
+    "Query Customer Data": {
+      "main": [[{ "node": "Jina Embed",           "type": "main", "index": 0 }]]
+    },
+    "Jina Embed": {
+      "main": [[{ "node": "Search Knowledge Base","type": "main", "index": 0 }]]
+    },
+    "Search Knowledge Base": {
+      "main": [[{ "node": "Build AI Prompt",      "type": "main", "index": 0 }]]
+    },
+    "Build AI Prompt": {
+      "main": [[{ "node": "Ask DeepSeek",         "type": "main", "index": 0 }]]
+    },
+    "Ask DeepSeek": {
+      "main": [[{ "node": "Extract Response",     "type": "main", "index": 0 }]]
+    },
+    "Extract Response": {
+      "main": [[{ "node": "Save Messages",        "type": "main", "index": 0 }]]
+    },
+    "Save Messages": {
+      "main": [[{ "node": "Respond to Webhook",   "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

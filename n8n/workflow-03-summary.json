@@ -1,0 +1,151 @@
+{
+  "name": "03 - Session Summary",
+  "nodes": [
+    {
+      "id": "node-webhook-summary",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 300],
+      "parameters": {
+        "path": "summarize",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "node-get-session-messages",
+      "name": "Get Session Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://YOUR_SUPABASE_URL/rest/v1/messages?session_id=eq.' + $json.body.session_id + '&select=role,content,created_at&order=created_at.asc' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Service" }
+      }
+    },
+    {
+      "id": "node-build-summary-prompt",
+      "name": "Build Summary Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300],
+      "parameters": {
+        "jsCode": "// Retrieve the session messages returned by Supabase\nconst messages = Array.isArray($json) ? $json : [$json];\nconst session_id = $('Webhook').first().json.body.session_id;\n\nif (!messages || messages.length === 0) {\n  throw new Error(`No messages found for session_id: ${session_id}`);\n}\n\n// ── Build readable conversation transcript ────────────────────────────────────\nconst transcript = messages\n  .map(msg => {\n    const roleLabel = msg.role === 'user' ? 'CLINIC OWNER' : 'AI COACH';\n    const timestamp = msg.created_at\n      ? new Date(msg.created_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })\n      : '';\n    const timeStr = timestamp ? ` [${timestamp}]` : '';\n    return `${roleLabel}${timeStr}:\\n${msg.content}`;\n  })\n  .join('\\n\\n---\\n\\n');\n\nconst messageCount = messages.length;\nconst userMessageCount = messages.filter(m => m.role === 'user').length;\nconst coachMessageCount = messages.filter(m => m.role === 'assistant').length;\n\n// ── Assemble the summary prompt ───────────────────────────────────────────────\nconst summary_prompt = `You are an expert AI business coach summarising a coaching session for a beauty/wellness clinic owner.\n\nSESSION METADATA:\n- Session ID: ${session_id}\n- Total exchanges: ${messageCount} messages (${userMessageCount} from clinic owner, ${coachMessageCount} from coach)\n\nCONVERSATION TRANSCRIPT:\n${transcript}\n\nPlease produce a structured session summary with EXACTLY these three sections:\n\n## 1. Session Summary\nWrite 3-4 sentences capturing: the main topic(s) discussed, the key business challenges raised, and the overall direction of the coaching conversation.\n\n## 2. Key Insights\nProvide bullet points covering:\n- Data highlights or metrics mentioned (revenue, rebook rate, satisfaction scores, etc.)\n- Root causes or patterns identified during the session\n- Strengths observed in the business\n- Risks or gaps that need attention\n\n## 3. Action Plan for Next 7 Days\nProvide a numbered priority list (at least 3, no more than 7 actions) of specific, concrete steps the clinic owner should take this week. Each action should:\n- Start with a strong action verb\n- Be achievable within 7 days\n- Reference specific insights from this session where possible\n\nKeep the summary professional, encouraging, and focused on tangible outcomes.`;\n\nreturn [{\n  json: {\n    session_id,\n    messages_formatted: transcript,\n    summary_prompt,\n    message_count: messageCount\n  }\n}];"
+      }
+    },
+    {
+      "id": "node-ask-deepseek-summary",
+      "name": "Ask DeepSeek Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: 'You are an expert AI business coach. Produce structured, actionable session summaries.' }, { role: 'user', content: $json.summary_prompt }], temperature: 0.5, max_tokens: 1500 }) }}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "DeepSeek API" }
+      }
+    },
+    {
+      "id": "node-extract-summary-response",
+      "name": "Extract Summary Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 300],
+      "parameters": {
+        "jsCode": "// Extract DeepSeek summary text and pass along session metadata\nconst deepseekResponse = $json;\nconst buildData = $('Build Summary Prompt').first().json;\n\nconst ai_response = deepseekResponse?.choices?.[0]?.message?.content || 'No summary generated.';\nconst session_id = buildData.session_id;\nconst message_count = buildData.message_count;\n\nreturn [{\n  json: {\n    ai_response,\n    session_id,\n    message_count\n  }\n}];"
+      }
+    },
+    {
+      "id": "node-save-summary",
+      "name": "Save Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://YOUR_SUPABASE_URL/rest/v1/sessions?id=eq.' + $json.session_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ summary: $json.ai_response, ended_at: new Date().toISOString() }) }}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        },
+        "headers": {
+          "parameters": [
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Service" }
+      }
+    },
+    {
+      "id": "node-respond-webhook-summary",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1420, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ summary: $('Extract Summary Response').first().json.ai_response, session_id: $('Extract Summary Response').first().json.session_id, message_count: $('Extract Summary Response').first().json.message_count }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Get Session Messages", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Session Messages": {
+      "main": [
+        [{ "node": "Build Summary Prompt", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Summary Prompt": {
+      "main": [
+        [{ "node": "Ask DeepSeek Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ask DeepSeek Summary": {
+      "main": [
+        [{ "node": "Extract Summary Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Summary Response": {
+      "main": [
+        [{ "node": "Save Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "Save Summary": {
+      "main": [
+        [{ "node": "Respond to Webhook", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

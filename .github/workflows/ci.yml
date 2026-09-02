@@ -1,0 +1,37 @@
+name: Aura Clinic Voice AI CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run TypeScript Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run Automated Unit & Business Logic Tests
+        run: npm run test
+
+      - name: Build Next.js Production App
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://dsjrmpyyinjcugcxsczx.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzanJtcHl5aW5qY3VnY3hzY3p4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NzA1MjAsImV4cCI6MjA4ODE0NjUyMH0.p83v9lW1v-bL4h5Uu5Kz0yZgHw7K9k1q7v6n5m4l3k2' }}
+          NEXT_PUBLIC_N8N_BASE_URL: ${{ secrets.NEXT_PUBLIC_N8N_BASE_URL || 'https://primary-production-c0ce.up.railway.app' }}

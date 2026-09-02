@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  aura-clinic-voice-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aura_clinic_voice_ai
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=https://dsjrmpyyinjcugcxsczx.supabase.co
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzanJtcHl5aW5qY3VnY3hzY3p4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NzA1MjAsImV4cCI6MjA4ODE0NjUyMH0.p83v9lW1v-bL4h5Uu5Kz0yZgHw7K9k1q7v6n5m4l3k2
+      - NEXT_PUBLIC_N8N_BASE_URL=https://primary-production-c0ce.up.railway.app
