@@ -6,15 +6,12 @@ import {
   Sparkles,
   Upload,
   CheckCircle2,
-  Clock,
   Target,
   DollarSign,
   Calendar,
   MessageSquare,
   Plus,
   MoreVertical,
-  Check,
-  ChevronRight,
   FileText,
   Users,
 } from 'lucide-react';
@@ -234,7 +231,7 @@ ${selectedPlan.rationale}
         {/* Left 3 Cols: Your Plans List */}
         <div className="lg:col-span-3 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Your plans</h3>
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">Your plans</h3>
             <button className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600">
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -298,7 +295,7 @@ ${selectedPlan.rationale}
                       ✨ AI-generated from coaching session
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 font-sans">
                     {selectedPlan.category} · Created {selectedPlan.createdAt}
                   </p>
                 </div>
@@ -306,11 +303,16 @@ ${selectedPlan.rationale}
 
               <div className="flex items-center justify-between pt-1">
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs text-slate-500">Owners</span>
+                  <span className="text-xs text-slate-500 font-sans">Owners</span>
                   <div className="flex -space-x-1.5">
                     <div className="w-6 h-6 rounded-full bg-amber-50 border border-amber-300 text-[10px] font-bold text-amber-900 flex items-center justify-center">
                       CV
                     </div>
+                    <img
+                      src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80"
+                      alt="Owner"
+                      className="w-6 h-6 rounded-full object-cover border border-white"
+                    />
                     <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-700 flex items-center justify-center">
                       FD
                     </div>
@@ -339,7 +341,7 @@ ${selectedPlan.rationale}
 
             {/* Session Summary Box */}
             <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-100 space-y-2.5">
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block font-sans">
                 Session summary
               </span>
               <p className="text-xs text-slate-700 leading-relaxed font-sans">
@@ -360,7 +362,7 @@ ${selectedPlan.rationale}
 
             {/* Priority Actions Table */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Priority actions</h4>
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">Priority actions</h4>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -402,20 +404,37 @@ ${selectedPlan.rationale}
                           {act.action}
                         </td>
                         <td className="py-3 px-2 text-slate-600 whitespace-nowrap">
-                          {act.owner}
+                          <div className="flex items-center space-x-1.5">
+                            {act.owner === 'Dr. Chloe' ? (
+                              <div className="w-5 h-5 rounded-full bg-amber-50 border border-amber-300 text-[9px] font-bold text-amber-900 flex items-center justify-center">
+                                CV
+                              </div>
+                            ) : act.owner === 'Front Desk' ? (
+                              <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-[9px] font-bold text-slate-700 flex items-center justify-center">
+                                FD
+                              </div>
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-200 text-[9px] font-bold text-indigo-700 flex items-center justify-center">
+                                {act.owner.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-[11px]">{act.owner}</span>
+                          </div>
                         </td>
-                        <td className="py-3 px-2 text-slate-500 whitespace-nowrap">
+                        <td className="py-3 px-2 text-slate-500 whitespace-nowrap text-[11px]">
                           {act.dueDate}
                         </td>
                         <td className="py-3 px-2 text-right whitespace-nowrap">
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            className={`px-2.5 py-0.5 rounded text-[10px] font-semibold ${
                               act.completed
                                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : act.status === 'Ready' || act.status === 'Draft ready'
+                                ? 'bg-emerald-50/60 text-emerald-800 border border-emerald-200'
                                 : 'bg-slate-100 text-slate-600'
                             }`}
                           >
-                            {act.completed ? '✓ Completed' : act.status}
+                            {act.completed ? '✓ Completed' : `✓ ${act.status}`}
                           </span>
                         </td>
                       </tr>

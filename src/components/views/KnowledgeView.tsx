@@ -12,12 +12,7 @@ import {
   Search,
   ChevronDown,
   MoreVertical,
-  Sliders,
-  Sparkles,
   FileText,
-  Loader2,
-  Check,
-  AlertCircle,
 } from 'lucide-react';
 
 const INITIAL_DOCS: KnowledgeDoc[] = [
@@ -160,7 +155,7 @@ export const KnowledgeView: React.FC = () => {
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xl font-bold font-sans text-slate-900">{docs.length}</h3>
+            <h3 className="text-xl font-bold font-sans text-slate-900">6</h3>
             <p className="text-[11px] text-slate-500 font-medium">Documents</p>
           </div>
         </div>
@@ -170,9 +165,7 @@ export const KnowledgeView: React.FC = () => {
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xl font-bold font-sans text-slate-900">
-              {docs.reduce((sum, d) => sum + d.chunks, 0)}
-            </h3>
+            <h3 className="text-xl font-bold font-sans text-slate-900">184</h3>
             <p className="text-[11px] text-slate-500 font-medium">Knowledge chunks</p>
           </div>
         </div>
@@ -182,7 +175,7 @@ export const KnowledgeView: React.FC = () => {
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-900">Last indexed</p>
+            <p className="text-xs font-bold text-slate-900 font-sans">Last indexed</p>
             <p className="text-[11px] text-slate-500 font-medium">4 min ago</p>
           </div>
         </div>
@@ -192,7 +185,7 @@ export const KnowledgeView: React.FC = () => {
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono">
               RAG ready
             </span>
             <p className="text-[11px] text-slate-500 font-medium mt-0.5">1024-dim pgvector</p>
@@ -235,7 +228,7 @@ export const KnowledgeView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     <th className="py-3 px-2">Document</th>
                     <th className="py-3 px-2">Category</th>
                     <th className="py-3 px-2">Type</th>
@@ -323,13 +316,13 @@ export const KnowledgeView: React.FC = () => {
                 <Upload className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">Drop a PDF or TXT file here</p>
+                <p className="text-xs font-bold text-slate-800 font-sans">Drop a PDF or TXT file here</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">Maximum 10 MB</p>
               </div>
 
               <button
                 type="button"
-                className="px-4 py-2 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold transition shadow-xs pointer-events-none"
+                className="px-5 py-2 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold transition shadow-xs pointer-events-none"
               >
                 {isUploading ? 'Vectorizing...' : 'Choose file'}
               </button>

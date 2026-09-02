@@ -36,37 +36,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between h-screen sticky top-0 flex-shrink-0 select-none">
+    <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between h-screen sticky top-0 flex-shrink-0 select-none z-20">
       
       {/* Top Section: Brand Logo & Navigation */}
       <div className="p-6 space-y-7">
         
         {/* Logo & Clinic Title */}
-        <div className="flex flex-col items-center text-center space-y-1.5 cursor-pointer" onClick={() => setActiveView('overview')}>
-          <AuraLogo size={42} />
+        <div 
+          className="flex flex-col items-center text-center space-y-1.5 cursor-pointer group" 
+          onClick={() => setActiveView('overview')}
+        >
+          <AuraLogo size={46} />
           <h1 className="text-sm font-serif font-bold tracking-widest text-slate-900 uppercase pt-1">
             AURA CLINIC
           </h1>
-          <p className="text-[10px] font-sans font-medium text-amber-800/80 tracking-wide">
+          <p className="text-[10px] font-sans font-medium text-amber-800 tracking-wider">
             AI Practice Intelligence
           </p>
         </div>
 
         {/* Nav Items */}
-        <nav className="space-y-1">
+        <nav className="space-y-1.5">
           {navItems.map((item) => {
             const isActive = activeView === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
+                className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                   isActive
                     ? 'bg-[#EBF3EA] text-[#1E3A2B] font-bold shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
-                <span className={isActive ? 'text-[#1E3A2B]' : 'text-slate-500'}>
+                <span className={isActive ? 'text-[#1E3A2B]' : 'text-slate-400'}>
                   {item.icon}
                 </span>
                 <span className="font-sans text-[13px]">{item.label}</span>
@@ -82,10 +85,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Help Button */}
         <button
           onClick={onOpenHelp}
-          className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition"
+          className="w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition"
         >
           <HelpCircle className="w-4 h-4 text-slate-400" />
-          <span className="font-medium text-[13px]">Help & Tour</span>
+          <span className="font-medium text-[13px]">Help</span>
         </button>
 
         {/* User Card */}

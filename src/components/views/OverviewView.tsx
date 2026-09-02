@@ -13,7 +13,6 @@ import {
   BookOpen,
   CheckSquare,
   Calendar,
-  TrendingUp,
   TrendingDown,
   ChevronDown,
 } from 'lucide-react';
@@ -49,8 +48,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <span className="text-xs font-medium text-slate-500 font-sans">
             September 3, 2026
           </span>
-          <button className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 transition shadow-xs">
+          <button className="relative p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 transition shadow-xs">
             <Bell className="w-4 h-4" />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
           </button>
           <button
             onClick={onOpenCoach}
@@ -62,7 +62,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </div>
 
-      {/* 4 KPI Cards with Sparklines */}
+      {/* 4 KPI Metric Cards with Sparklines */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: Revenue */}
@@ -79,14 +79,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <span>↑ +8.4% this month</span>
             </p>
           </div>
-          {/* Sparkline */}
+          {/* Gold Sparkline */}
           <div className="h-7 w-full pt-1">
             <svg className="w-full h-full" viewBox="0 0 100 25" preserveAspectRatio="none">
               <path
-                d="M0,20 Q15,18 25,12 T50,15 T75,8 T100,5"
+                d="M0,22 Q15,19 25,14 T50,16 T75,9 T100,5"
                 fill="none"
                 stroke="#C5A880"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 strokeLinecap="round"
               />
             </svg>
@@ -107,14 +107,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <span>🎯 Goal 65%</span>
             </p>
           </div>
-          {/* Sparkline */}
+          {/* Green Sparkline */}
           <div className="h-7 w-full pt-1">
             <svg className="w-full h-full" viewBox="0 0 100 25" preserveAspectRatio="none">
               <path
-                d="M0,15 Q20,20 40,12 T70,14 T100,10"
+                d="M0,16 Q20,21 40,13 T70,15 T100,10"
                 fill="none"
                 stroke="#2D5A3C"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 strokeLinecap="round"
               />
             </svg>
@@ -135,7 +135,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <span>↑ +6 this month</span>
             </p>
           </div>
-          {/* Mini Bar Graph */}
+          {/* Bar Graph */}
           <div className="h-7 w-full flex items-end justify-between px-1 pt-1 gap-1">
             {[40, 60, 35, 80, 50, 65, 90, 70, 85, 95, 60, 75, 100].map((h, i) => (
               <div
@@ -161,14 +161,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <span>🏆 Top 5%</span>
             </p>
           </div>
-          {/* Sparkline */}
+          {/* Green Sparkline */}
           <div className="h-7 w-full pt-1">
             <svg className="w-full h-full" viewBox="0 0 100 25" preserveAspectRatio="none">
               <path
                 d="M0,18 Q30,12 60,8 T100,6"
                 fill="none"
                 stroke="#2D5A3C"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 strokeLinecap="round"
               />
             </svg>
@@ -185,13 +185,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900 font-sans">Clinic Performance</h3>
-              <div className="flex items-center space-x-4 text-[11px] text-slate-500 mt-1">
+              <div className="flex items-center space-x-4 text-[11px] text-slate-500 mt-1 font-sans">
                 <span className="flex items-center space-x-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#C5A880]" />
+                  <span className="w-3 h-0.5 bg-[#C5A880]" />
                   <span>Revenue (USD)</span>
                 </span>
                 <span className="flex items-center space-x-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#2D5A3C]" />
+                  <span className="w-3 h-0.5 bg-[#2D5A3C]" />
                   <span>Retention (%)</span>
                 </span>
               </div>
@@ -203,35 +203,62 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
           </div>
 
-          {/* Dual Line Curve SVG Chart */}
-          <div className="relative h-48 w-full pt-4">
-            <svg className="w-full h-full" viewBox="0 0 500 160" preserveAspectRatio="none">
-              {/* Grid Lines */}
-              <line x1="0" y1="40" x2="500" y2="40" stroke="#F1F5F9" strokeWidth="1" />
-              <line x1="0" y1="80" x2="500" y2="80" stroke="#F1F5F9" strokeWidth="1" />
-              <line x1="0" y1="120" x2="500" y2="120" stroke="#F1F5F9" strokeWidth="1" />
+          {/* Chart with Dual Y-Axis */}
+          <div className="relative h-48 w-full pt-2">
+            <div className="flex h-full">
               
-              {/* Revenue Gold Curve */}
-              <path
-                d="M0,120 C60,110 100,105 160,95 C220,100 280,75 340,70 C400,65 440,50 500,35"
-                fill="none"
-                stroke="#C5A880"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
+              {/* Left Y-Axis (Revenue) */}
+              <div className="flex flex-col justify-between text-[10px] text-slate-400 font-mono pr-2 text-right w-10">
+                <span>$80K</span>
+                <span>$60K</span>
+                <span>$40K</span>
+                <span>$20K</span>
+                <span>$0</span>
+              </div>
 
-              {/* Retention Green Curve */}
-              <path
-                d="M0,90 C70,85 130,88 200,82 C270,84 350,78 420,80 C460,78 490,75 500,72"
-                fill="none"
-                stroke="#2D5A3C"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-            </svg>
+              {/* Chart SVG */}
+              <div className="flex-1 relative h-full">
+                <svg className="w-full h-full" viewBox="0 0 500 160" preserveAspectRatio="none">
+                  {/* Grid Lines */}
+                  <line x1="0" y1="0" x2="500" y2="0" stroke="#F1F5F9" strokeWidth="1" />
+                  <line x1="0" y1="40" x2="500" y2="40" stroke="#F1F5F9" strokeWidth="1" />
+                  <line x1="0" y1="80" x2="500" y2="80" stroke="#F1F5F9" strokeWidth="1" />
+                  <line x1="0" y1="120" x2="500" y2="120" stroke="#F1F5F9" strokeWidth="1" />
+                  <line x1="0" y1="160" x2="500" y2="160" stroke="#F1F5F9" strokeWidth="1" />
+                  
+                  {/* Revenue Gold Curve */}
+                  <path
+                    d="M0,110 C60,105 100,98 160,90 C220,95 280,72 340,66 C400,60 440,46 500,32"
+                    fill="none"
+                    stroke="#C5A880"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+
+                  {/* Retention Green Curve */}
+                  <path
+                    d="M0,88 C70,84 130,86 200,80 C270,82 350,76 420,78 C460,76 490,73 500,70"
+                    fill="none"
+                    stroke="#2D5A3C"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+
+              {/* Right Y-Axis (Retention) */}
+              <div className="flex flex-col justify-between text-[10px] text-slate-400 font-mono pl-2 text-left w-10">
+                <span>100%</span>
+                <span>75%</span>
+                <span>50%</span>
+                <span>25%</span>
+                <span>0%</span>
+              </div>
+
+            </div>
 
             {/* X-Axis Labels */}
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-2">
+            <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-2 px-10">
               <span>Jun 6</span>
               <span>Jun 20</span>
               <span>Jul 4</span>
@@ -243,13 +270,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
 
           {/* Bottom Stats */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-sans">
             <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-[#C5A880]" />
               <span className="text-slate-500 font-medium">Revenue</span>
               <span className="font-bold text-slate-900">$57,980</span>
               <span className="text-emerald-700 font-medium">↑ 8.4%</span>
             </div>
             <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-[#2D5A3C]" />
               <span className="text-slate-500 font-medium">Retention</span>
               <span className="font-bold text-slate-900">60%</span>
               <span className="text-slate-400 font-medium">Goal 65%</span>
@@ -273,8 +302,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">8 patients need follow-up</h4>
-                  <p className="text-[11px] text-slate-500">Outreach to rebook or check in</p>
+                  <h4 className="text-xs font-bold text-slate-900 font-sans">8 patients need follow-up</h4>
+                  <p className="text-[11px] text-slate-500 font-sans">Outreach to rebook or check in</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -290,8 +319,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   <TrendingDown className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">5 consultations not converted</h4>
-                  <p className="text-[11px] text-slate-500">Review and improve conversion flow</p>
+                  <h4 className="text-xs font-bold text-slate-900 font-sans">5 consultations not converted</h4>
+                  <p className="text-[11px] text-slate-500 font-sans">Review and improve conversion flow</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -307,8 +336,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   <Users className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">2 low-satisfaction patients</h4>
-                  <p className="text-[11px] text-slate-500">Address concerns to protect retention</p>
+                  <h4 className="text-xs font-bold text-slate-900 font-sans">2 low-satisfaction patients</h4>
+                  <p className="text-[11px] text-slate-500 font-sans">Address concerns to protect retention</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -327,7 +356,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <div className="space-y-2">
             <div className="flex items-center space-x-2 text-slate-800">
               <MessageSquare className="w-4 h-4 text-[#2D5A3C]" />
-              <span className="text-xs font-bold">AI Coaching</span>
+              <span className="text-xs font-bold font-sans">AI Coaching</span>
               <span className="text-[10px] text-slate-400">· 3 sessions this week</span>
             </div>
             <div className="p-2.5 rounded-xl bg-[#EBF3EA] text-[#1E3A2B] text-xs font-medium border border-[#D5E6D3]">
@@ -348,7 +377,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <div className="space-y-2">
             <div className="flex items-center space-x-2 text-slate-800">
               <BookOpen className="w-4 h-4 text-[#2D5A3C]" />
-              <span className="text-xs font-bold">Knowledge Base</span>
+              <span className="text-xs font-bold font-sans">Knowledge Base</span>
               <span className="text-[10px] text-slate-400">· 6 documents · 184 chunks</span>
             </div>
             <div className="flex items-center justify-between text-xs">
@@ -357,9 +386,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 RAG ready
               </span>
             </div>
-            <p className="text-[11px] text-slate-500">
-              Indexing activity active across 1024-dim pgvector.
-            </p>
+            {/* Sparkline for indexing activity */}
+            <div className="pt-1 flex items-center space-x-2">
+              <span className="text-[10px] text-slate-400">Indexing activity (last 7 days)</span>
+              <div className="h-4 flex-1">
+                <svg className="w-full h-full" viewBox="0 0 100 20" preserveAspectRatio="none">
+                  <path d="M0,15 Q30,18 60,10 T100,5" fill="none" stroke="#2D5A3C" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
           </div>
           <button
             onClick={onOpenKnowledge}
@@ -375,9 +410,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <div className="space-y-2">
             <div className="flex items-center space-x-2 text-slate-800">
               <CheckSquare className="w-4 h-4 text-[#2D5A3C]" />
-              <span className="text-xs font-bold">Action Plan Progress</span>
+              <span className="text-xs font-bold font-sans">Action Plan Progress</span>
             </div>
-            <h4 className="text-xs font-bold text-slate-900">VIP Retention Sprint</h4>
+            <h4 className="text-xs font-bold text-slate-900 font-sans">VIP Retention Sprint</h4>
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] text-slate-500">
                 <span>1 of 5 complete</span>
@@ -405,43 +440,52 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
         <div className="divide-y divide-slate-100 text-xs">
           
-          <div className="py-2.5 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded transition">
+          <div className="py-2.5 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded transition cursor-pointer">
             <div className="flex items-center space-x-3">
               <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
                 <Calendar className="w-3.5 h-3.5" />
               </div>
               <div>
-                <p className="font-bold text-slate-900">3 follow-ups were completed</p>
+                <p className="font-bold text-slate-900 font-sans">3 follow-ups were completed</p>
                 <p className="text-[11px] text-slate-400">Follow-up tasks marked complete</p>
               </div>
             </div>
-            <span className="text-[11px] text-slate-400">1 hour ago</span>
+            <div className="flex items-center space-x-2 text-slate-400">
+              <span className="text-[11px]">1 hour ago</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
           </div>
 
-          <div className="py-2.5 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded transition">
+          <div className="py-2.5 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded transition cursor-pointer">
             <div className="flex items-center space-x-3">
               <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
                 <Users className="w-3.5 h-3.5" />
               </div>
               <div>
-                <p className="font-bold text-slate-900">New patient: Victoria Kensington</p>
+                <p className="font-bold text-slate-900 font-sans">New patient: Victoria Kensington</p>
                 <p className="text-[11px] text-slate-400">Consultation scheduled for Sep 8, 2026</p>
               </div>
             </div>
-            <span className="text-[11px] text-slate-400">3 hours ago</span>
+            <div className="flex items-center space-x-2 text-slate-400">
+              <span className="text-[11px]">3 hours ago</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
           </div>
 
-          <div className="py-2.5 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded transition">
+          <div className="py-2.5 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded transition cursor-pointer">
             <div className="flex items-center space-x-3">
               <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
                 <BookOpen className="w-3.5 h-3.5" />
               </div>
               <div>
-                <p className="font-bold text-slate-900">Document indexed: Morpheus8 Treatment Protocol</p>
+                <p className="font-bold text-slate-900 font-sans">Document indexed: Morpheus8 Treatment Protocol</p>
                 <p className="text-[11px] text-slate-400">Added to knowledge base</p>
               </div>
             </div>
-            <span className="text-[11px] text-slate-400">5 hours ago</span>
+            <div className="flex items-center space-x-2 text-slate-400">
+              <span className="text-[11px]">5 hours ago</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
           </div>
 
         </div>

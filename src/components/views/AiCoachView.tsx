@@ -19,16 +19,17 @@ import {
   BookOpen,
   Target,
   FileText,
-  Clock,
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
-  MoreHorizontal,
   Pause,
   Play,
   Keyboard,
   RotateCcw,
   Zap,
+  MoreHorizontal,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 interface Message {
@@ -62,7 +63,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-  const [voiceSeconds, setVoiceSeconds] = useState(272);
+  const [voiceSeconds, setVoiceSeconds] = useState(272); // 04:32
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryText, setSummaryText] = useState('');
 
@@ -299,7 +300,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setCoachMode('chat')}
-                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
@@ -313,7 +314,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
               <button
                 onClick={handleEndSession}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-bold transition"
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-bold transition shadow-xs"
               >
                 <Square className="w-3 h-3 fill-rose-600 text-rose-600" />
                 <span>End session</span>
@@ -321,21 +322,22 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             </div>
 
             {/* Central Animated Soundwave Orb */}
-            <div className="flex flex-col items-center justify-center text-center space-y-5 py-4">
-              <span className="text-[11px] font-bold tracking-widest text-emerald-800 uppercase">
+            <div className="flex flex-col items-center justify-center text-center space-y-5 py-2">
+              <span className="text-[11px] font-bold tracking-widest text-emerald-800 uppercase font-mono">
                 {isListening ? 'AURA IS LISTENING' : isPlayingAudio ? 'AURA IS SPEAKING' : 'AURA READY'}
               </span>
 
               {/* Concentric Green Rings */}
-              <div className="relative w-48 h-48 flex items-center justify-center">
-                <div className={`absolute inset-0 rounded-full border-2 border-emerald-600/20 ${isListening || isPlayingAudio ? 'animate-ping duration-1000' : ''}`} />
-                <div className="absolute inset-4 rounded-full border-2 border-emerald-600/30" />
+              <div className="relative w-52 h-52 flex items-center justify-center">
+                <div className={`absolute inset-0 rounded-full border border-emerald-600/20 ${isListening || isPlayingAudio ? 'animate-ping duration-1000' : ''}`} />
+                <div className="absolute inset-4 rounded-full border border-emerald-600/30" />
                 <div className="absolute inset-8 rounded-full border border-emerald-600/40" />
+                <div className="absolute inset-12 rounded-full border border-emerald-600/50" />
                 
-                <div className="w-28 h-28 rounded-full bg-emerald-50 border border-emerald-300 flex items-center justify-center shadow-xs">
+                <div className="w-24 h-24 rounded-full bg-emerald-50/70 border border-emerald-300 flex items-center justify-center shadow-xs">
                   {/* Green Audio Equalizer Bars */}
-                  <div className="flex items-center space-x-1 h-10">
-                    {[12, 24, 38, 20, 32, 16, 28, 36, 18, 10].map((h, i) => (
+                  <div className="flex items-center space-x-1 h-12">
+                    {[10, 22, 36, 18, 42, 14, 28, 38, 16, 8].map((h, i) => (
                       <div
                         key={i}
                         style={{ height: `${isListening || isPlayingAudio ? h : 6}px` }}
@@ -353,10 +355,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             </div>
 
             {/* AI Response Card */}
-            <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/80 space-y-3">
+            <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/80 space-y-3 shadow-xs">
               <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 rounded-full bg-amber-50 border border-amber-300 flex items-center justify-center text-amber-700 flex-shrink-0 mt-0.5">
-                  <Sparkles className="w-3.5 h-3.5" />
+                <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 flex-shrink-0 mt-0.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-800 leading-relaxed font-sans font-medium">
@@ -370,7 +372,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               {/* Evidence Pill */}
               <div className="flex items-center space-x-2 text-[11px] text-slate-500 pt-1">
                 <span className="flex items-center space-x-1 font-semibold text-emerald-800">
-                  <CheckCircle2 className="w-3 h-3" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Checked 50 patient records · VIP Retention SOP · 2.4s</span>
                 </span>
               </div>
@@ -386,12 +388,12 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             </div>
 
             {/* Bottom Controls Bar */}
-            <div className="flex items-center justify-center space-x-6 pt-2">
+            <div className="flex items-center justify-center space-x-8 pt-2">
               <button
                 onClick={toggleMic}
                 className="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-900"
               >
-                <div className={`p-3 rounded-full border ${isListening ? 'bg-rose-50 border-rose-300 text-rose-700' : 'border-slate-200'}`}>
+                <div className={`p-3 rounded-full border ${isListening ? 'bg-rose-50 border-rose-300 text-rose-700' : 'border-slate-200 bg-white'}`}>
                   {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                 </div>
                 <span className="text-[10px] font-medium">{isListening ? 'Mute mic' : 'Unmute mic'}</span>
@@ -408,7 +410,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                 onClick={() => setCoachMode('chat')}
                 className="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-900"
               >
-                <div className="p-3 rounded-full border border-slate-200">
+                <div className="p-3 rounded-full border border-slate-200 bg-white">
                   <Keyboard className="w-4 h-4" />
                 </div>
                 <span className="text-[10px] font-medium">Switch to chat</span>
@@ -418,7 +420,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                 onClick={() => setIsSpeakerOn(!isSpeakerOn)}
                 className="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-900"
               >
-                <div className={`p-3 rounded-full border ${isSpeakerOn ? 'border-slate-200' : 'bg-slate-100'}`}>
+                <div className={`p-3 rounded-full border bg-white ${isSpeakerOn ? 'border-slate-200 text-slate-800' : 'bg-slate-100 text-slate-400'}`}>
                   {isSpeakerOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
                 </div>
                 <span className="text-[10px] font-medium">{isSpeakerOn ? 'Speaker on' : 'Muted'}</span>
@@ -434,55 +436,55 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
               <div className="flex items-center space-x-2 text-slate-800">
                 <Users className="w-4 h-4 text-[#2D5A3C]" />
-                <h4 className="text-xs font-bold">Live context</h4>
+                <h4 className="text-xs font-bold font-sans">Live context</h4>
               </div>
               <p className="text-[11px] text-slate-500">3 high-value patients identified</p>
 
               <div className="space-y-2.5 divide-y divide-slate-100 text-xs">
                 
                 <div className="pt-2 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2.5">
                     <img
                       src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80"
                       alt="Victoria"
-                      className="w-7 h-7 rounded-full object-cover"
+                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
                     />
                     <div>
-                      <p className="font-bold text-slate-900">Victoria Kensington</p>
+                      <p className="font-bold text-slate-900 font-sans">Victoria Kensington</p>
                       <p className="text-[10px] text-slate-400">64 days since last visit</p>
                     </div>
                   </div>
-                  <span className="font-bold text-slate-900 font-mono">$6,800</span>
+                  <span className="font-bold text-slate-900 font-sans">$6,800</span>
                 </div>
 
                 <div className="pt-2 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2.5">
                     <img
                       src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
                       alt="Isabella"
-                      className="w-7 h-7 rounded-full object-cover"
+                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
                     />
                     <div>
-                      <p className="font-bold text-slate-900">Isabella Cruz</p>
+                      <p className="font-bold text-slate-900 font-sans">Isabella Cruz</p>
                       <p className="text-[10px] text-slate-400">108 days since last visit</p>
                     </div>
                   </div>
-                  <span className="font-bold text-slate-900 font-mono">$3,600</span>
+                  <span className="font-bold text-slate-900 font-sans">$3,600</span>
                 </div>
 
                 <div className="pt-2 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2.5">
                     <img
                       src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&auto=format&fit=crop&q=80"
                       alt="Daniel"
-                      className="w-7 h-7 rounded-full object-cover"
+                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
                     />
                     <div>
-                      <p className="font-bold text-slate-900">Daniel Kim</p>
+                      <p className="font-bold text-slate-900 font-sans">Daniel Kim</p>
                       <p className="text-[10px] text-slate-400">91 days since last visit</p>
                     </div>
                   </div>
-                  <span className="font-bold text-slate-900 font-mono">$3,200</span>
+                  <span className="font-bold text-slate-900 font-sans">$3,200</span>
                 </div>
 
               </div>
@@ -501,10 +503,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-slate-800">
                   <FileText className="w-4 h-4 text-[#2D5A3C]" />
-                  <h4 className="text-xs font-bold">Session notes</h4>
+                  <h4 className="text-xs font-bold font-sans">Session notes</h4>
                 </div>
                 <span className="flex items-center space-x-1 text-[10px] font-medium text-emerald-800">
-                  <CheckCircle2 className="w-3 h-3" />
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                   <span>Auto-saved</span>
                 </span>
               </div>
@@ -522,7 +524,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
         /* MODE 2: CHAT & DICTATION MODE (Screen 3) */
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs overflow-hidden">
           
-          {/* Main Chat Center: 8 or 12 Cols depending on panel collapse */}
+          {/* Main Chat Center */}
           <div className={`${isPanelCollapsed ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col justify-between space-y-4`}>
             
             {/* Top Bar */}
@@ -543,11 +545,8 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={handleEndSession}
-                  className="px-3.5 py-2 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold transition shadow-xs"
-                >
-                  End & Synthesize Plan
+                <button className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-slate-200">
+                  <MoreHorizontal className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -556,26 +555,26 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               {messages.length === 0 ? (
                 /* Welcome Screen */
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 py-8">
-                  <AuraLogo size={56} />
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 py-6">
+                  <AuraLogo size={52} />
 
                   <div className="space-y-1 max-w-md">
                     <h3 className="text-2xl font-serif font-bold text-slate-900">
                       How can I help your clinic today?
                     </h3>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 font-sans">
                       Ask about revenue, conversions, retention, patients, pricing, or clinic procedures.
                     </p>
                   </div>
 
                   {/* 4 Quick Starter Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl text-left pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full max-w-3xl text-left pt-2">
                     
                     <button
-                      onClick={() => handleSendMessage("Which patients need follow-up outreach in our clinic?")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs space-y-2 group"
+                      onClick={() => handleSendMessage("Which patients need follow-up?")}
+                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
                     >
-                      <div className="w-7 h-7 rounded-lg bg-[#EBF3EA] text-[#1E3A2B] flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-[#EBF3EA] text-[#1E3A2B] flex items-center justify-center">
                         <Users className="w-4 h-4" />
                       </div>
                       <p className="text-xs font-bold text-slate-900 font-sans group-hover:text-[#1E3A2B]">
@@ -584,10 +583,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                     </button>
 
                     <button
-                      onClick={() => handleSendMessage("Why are some consultations not converting and how can we improve them?")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs space-y-2 group"
+                      onClick={() => handleSendMessage("Why are consultations not converting?")}
+                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
                     >
-                      <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-800 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-800 flex items-center justify-center">
                         <TrendingUp className="w-4 h-4" />
                       </div>
                       <p className="text-xs font-bold text-slate-900 font-sans group-hover:text-[#1E3A2B]">
@@ -596,10 +595,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                     </button>
 
                     <button
-                      onClick={() => handleSendMessage("What does our pricing policy and SOP say about package discounts?")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs space-y-2 group"
+                      onClick={() => handleSendMessage("What does our pricing policy say?")}
+                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
                     >
-                      <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
                         <BookOpen className="w-4 h-4" />
                       </div>
                       <p className="text-xs font-bold text-slate-900 font-sans group-hover:text-[#1E3A2B]">
@@ -608,10 +607,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                     </button>
 
                     <button
-                      onClick={() => handleSendMessage("Build a 7-day retention plan for our 90-day inactive injectable clients.")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs space-y-2 group"
+                      onClick={() => handleSendMessage("Build a 7-day retention plan")}
+                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
                     >
-                      <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
                         <Target className="w-4 h-4" />
                       </div>
                       <p className="text-xs font-bold text-slate-900 font-sans group-hover:text-[#1E3A2B]">
@@ -631,7 +630,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                       className={`flex flex-col ${isAI ? 'items-start' : 'items-end'} space-y-1`}
                     >
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                        {isAI ? 'Aura AI Business Coach' : 'Dr. Chloe Vance'} · {m.time}
+                        {isAI ? 'Aura AI Practice Intelligence' : 'Dr. Chloe Vance'} · {m.time}
                       </span>
 
                       <div
@@ -680,11 +679,11 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   e.preventDefault();
                   handleSendMessage();
                 }}
-                className="flex items-center space-x-2 bg-slate-50 p-2 rounded-2xl border border-slate-200"
+                className="flex items-center space-x-2 bg-slate-50 p-2 rounded-full border border-slate-200 shadow-xs"
               >
                 <button
                   type="button"
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-white transition"
+                  className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-white transition"
                   title="Attach Document"
                 >
                   <Plus className="w-4 h-4" />
@@ -699,23 +698,23 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   className="flex-1 bg-transparent text-xs text-slate-900 placeholder-slate-400 focus:outline-none font-sans px-2"
                 />
 
-                {/* Mic Voice-to-Text Button */}
+                {/* Mic Dictation Button */}
                 <button
                   type="button"
                   onClick={toggleMic}
-                  className={`p-2 rounded-xl transition ${
+                  className={`p-2 rounded-full transition ${
                     isListening ? 'bg-rose-500 text-white animate-pulse' : 'text-slate-500 hover:text-slate-900 hover:bg-white'
                   }`}
-                  title="Voice Input"
+                  title="Voice Dictation"
                 >
                   {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
 
-                {/* Switch to Live Voice Mode Button */}
+                {/* Live Voice Mode Toggle Button (Waveform) */}
                 <button
                   type="button"
                   onClick={() => setCoachMode('voice')}
-                  className="p-2 rounded-xl bg-[#1E3A2B] text-white hover:bg-[#162D21] transition shadow-xs"
+                  className="w-8 h-8 rounded-full bg-[#1E3A2B] text-white hover:bg-[#162D21] flex items-center justify-center transition shadow-xs"
                   title="Switch to Live Voice Mode"
                 >
                   <Volume2 className="w-4 h-4" />
@@ -725,7 +724,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                 <button
                   type="submit"
                   disabled={!inputMessage.trim() || isLoading}
-                  className="p-2 rounded-xl bg-emerald-100 text-emerald-900 hover:bg-emerald-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-2 rounded-full bg-[#EBF3EA] text-[#1E3A2B] hover:bg-[#D5E6D3] transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -743,23 +742,33 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             <div className="lg:col-span-4 space-y-4 border-l border-slate-100 pl-6 flex flex-col justify-between">
               
               <div className="space-y-4">
+                
                 {/* Context Available Card */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-                  <h4 className="text-xs font-bold text-slate-900 font-sans">Context available</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 font-sans">Context available</h4>
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
 
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center space-x-2.5 text-slate-700">
-                      <Users className="w-4 h-4 text-slate-400" />
+                      <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500">
+                        <Users className="w-3.5 h-3.5" />
+                      </div>
                       <span><strong>50</strong> patient records</span>
                     </div>
 
                     <div className="flex items-center space-x-2.5 text-slate-700">
-                      <BookOpen className="w-4 h-4 text-slate-400" />
+                      <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500">
+                        <BookOpen className="w-3.5 h-3.5" />
+                      </div>
                       <span><strong>6</strong> knowledge documents</span>
                     </div>
 
                     <div className="flex items-center space-x-2.5 text-slate-700">
-                      <FileText className="w-4 h-4 text-slate-400" />
+                      <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
                       <span><strong>12</strong> saved sessions</span>
                     </div>
                   </div>
@@ -767,31 +776,34 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
                 {/* Recent Conversations Card */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-                  <h4 className="text-xs font-bold text-slate-900 font-sans">Recent conversations</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 font-sans">Recent conversations</h4>
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
 
                   <div className="space-y-2.5 divide-y divide-slate-100 text-xs">
                     
                     <div
                       onClick={() => handleSendMessage("Patients who haven't rebooked in 90 days")}
-                      className="pt-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition"
+                      className="pt-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-xl transition"
                     >
-                      <p className="font-bold text-slate-800">Patients who haven&apos;t rebooked in 90 days</p>
+                      <p className="font-bold text-slate-800 font-sans">Patients who haven&apos;t rebooked in 90 days</p>
                       <p className="text-[10px] text-slate-400">10:02 AM</p>
                     </div>
 
                     <div
-                      onClick={() => handleSendMessage("How can we improve consultation conversion rate?")}
-                      className="pt-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition"
+                      onClick={() => handleSendMessage("Why are consultations not converting?")}
+                      className="pt-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-xl transition"
                     >
-                      <p className="font-bold text-slate-800">Improve consultation conversion rate</p>
+                      <p className="font-bold text-slate-800 font-sans">Improve consultation conversion rate</p>
                       <p className="text-[10px] text-slate-400">Yesterday</p>
                     </div>
 
                     <div
                       onClick={() => handleSendMessage("Q2 retention strategy review")}
-                      className="pt-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition"
+                      className="pt-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-xl transition"
                     >
-                      <p className="font-bold text-slate-800">Q2 retention strategy review</p>
+                      <p className="font-bold text-slate-800 font-sans">Q2 retention strategy review</p>
                       <p className="text-[10px] text-slate-400">Jun 24</p>
                     </div>
 
@@ -802,7 +814,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               {/* Collapse Button */}
               <button
                 onClick={() => setIsPanelCollapsed(true)}
-                className="flex items-center space-x-1 text-xs text-slate-400 hover:text-slate-700 pt-2"
+                className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-slate-700 pt-2"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 <span>Collapse panel</span>
