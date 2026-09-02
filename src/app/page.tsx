@@ -1,26 +1,26 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Header, TabType } from '@/components/Header';
-import { VoiceCoachTab } from '@/components/VoiceCoachTab';
-import { CrmDashboardTab } from '@/components/CrmDashboardTab';
-import { KnowledgeBaseTab } from '@/components/KnowledgeBaseTab';
-import { ActionPlansTab } from '@/components/ActionPlansTab';
+import { Sidebar, ViewType } from '@/components/Sidebar';
+import { OverviewView } from '@/components/views/OverviewView';
+import { AiCoachView } from '@/components/views/AiCoachView';
+import { PatientsView } from '@/components/views/PatientsView';
+import { KnowledgeView } from '@/components/views/KnowledgeView';
+import { ActionPlansView } from '@/components/views/ActionPlansView';
+import { SessionsView } from '@/components/views/SessionsView';
 import { ClinicTourGuide } from '@/components/ClinicTourGuide';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<TabType>('coach');
+  const [activeView, setActiveView] = useState<ViewType>('overview');
   const [sessionId, setSessionId] = useState<string>('');
-  const [isSessionActive, setIsSessionActive] = useState<boolean>(true);
-  const [sessionDuration, setSessionDuration] = useState<number>(0);
   const [prefilledCoachPrompt, setPrefilledCoachPrompt] = useState<string>('');
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [patientsInitialFilter, setPatientsInitialFilter] = useState<string>('all');
   
-  // Interactive Guide State
-  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
-  const [guideStep, setGuideStep] = useState<number>(1);
+  // Interactive Tour State
+  const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+  const [tourStep, setTourStep] = useState<number>(1);
 
-  // Initialize or restore active session ID
+  // Restore or generate active session ID
   useEffect(() => {
     const savedSessionId = localStorage.getItem('aura_active_session_id');
     if (savedSessionId) {
@@ -32,104 +32,94 @@ export default function Home() {
     }
   }, []);
 
-  // Update HTML root class for dark/light theme
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-  // Timer for active session
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isSessionActive) {
-      interval = setInterval(() => {
-        setSessionDuration((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isSessionActive]);
-
-  const startNewSession = () => {
+  const handleStartNewSession = () => {
     const newId = 'session-' + Date.now();
     setSessionId(newId);
     localStorage.setItem('aura_active_session_id', newId);
-    setSessionDuration(0);
-    setIsSessionActive(true);
+    setActiveView('coach');
   };
 
   const handleCoachClient = (prompt: string) => {
     setPrefilledCoachPrompt(prompt);
-    setActiveTab('coach');
+    setActiveView('coach');
   };
 
-  const openGuide = () => {
-    setGuideStep(1);
-    setIsGuideOpen(true);
+  const handleOpenPatientsWithFilter = (filter?: string) => {
+    if (filter) setPatientsInitialFilter(filter);
+    setActiveView('patients');
+  };
+
+  const handleOpenHelp = () => {
+    setTourStep(1);
+    setIsHelpOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFC] text-slate-900 flex flex-col font-sans selection:bg-amber-200 selection:text-slate-950">
+    <div className="flex h-screen bg-[#FDFDFC] text-slate-900 font-sans antialiased overflow-hidden selection:bg-[#D5E6D3] selection:text-[#1E3A2B]">
       
-      {/* Top Luxury Navigation */}
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isSessionActive={isSessionActive}
-        sessionDuration={sessionDuration}
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
-        onOpenGuide={openGuide}
+      {/* Left Sidebar Navigation */}
+      <Sidebar
+        activeView={activeView}
+        setActiveView={setActiveView}
+        onOpenHelp={handleOpenHelp}
       />
 
-      {/* Main Workspace View */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'coach' && (
-          <VoiceCoachTab
+      {/* Main Content Workspace (Scrollable) */}
+      <main className="flex-1 overflow-y-auto px-6 sm:px-10 py-8">
+        {activeView === 'overview' && (
+          <OverviewView
+            onOpenCoach={() => setActiveView('coach')}
+            onOpenPatients={handleOpenPatientsWithFilter}
+            onOpenKnowledge={() => setActiveView('knowledge')}
+            onOpenActions={() => setActiveView('actions')}
+          />
+        )}
+
+        {activeView === 'coach' && (
+          <AiCoachView
             sessionId={sessionId}
-            onNewSession={startNewSession}
+            onNewSession={handleStartNewSession}
             prefilledPrompt={prefilledCoachPrompt}
             clearPrefill={() => setPrefilledCoachPrompt('')}
           />
         )}
 
-        {activeTab === 'crm' && (
-          <CrmDashboardTab onCoachClient={handleCoachClient} />
+        {activeView === 'patients' && (
+          <PatientsView
+            onCoachClient={handleCoachClient}
+            initialFilter={patientsInitialFilter}
+          />
         )}
 
-        {activeTab === 'knowledge' && (
-          <KnowledgeBaseTab />
+        {activeView === 'knowledge' && (
+          <KnowledgeView />
         )}
 
-        {activeTab === 'actions' && (
-          <ActionPlansTab />
+        {activeView === 'sessions' && (
+          <SessionsView
+            onOpenSession={(id) => {
+              setSessionId(id);
+              localStorage.setItem('aura_active_session_id', id);
+              setActiveView('coach');
+            }}
+            onNewSession={handleStartNewSession}
+          />
+        )}
+
+        {activeView === 'actions' && (
+          <ActionPlansView
+            onStartNewSession={handleStartNewSession}
+            onContinueCoach={handleCoachClient}
+          />
         )}
       </main>
 
-      {/* Subtle Minimal Footer */}
-      <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500 bg-white">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span className="font-semibold text-slate-700">Aura Clinic Executive Voice AI • V-Unite Challenge Final MVP</span>
-          <div className="flex items-center space-x-3 text-[11px] text-slate-500 font-medium">
-            <span>Fish Audio TTS</span>
-            <span>•</span>
-            <span>DeepSeek-V3 RAG</span>
-            <span>•</span>
-            <span>n8n Orchestrated</span>
-            <span>•</span>
-            <span>Supabase pgvector</span>
-          </div>
-        </div>
-      </footer>
-
-      {/* Interactive Step-by-Step Clinic Tour Guide */}
+      {/* Interactive Tour Guide Modal */}
       <ClinicTourGuide
-        isOpen={isGuideOpen}
-        onClose={() => setIsGuideOpen(false)}
-        currentStep={guideStep}
-        setCurrentStep={setGuideStep}
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+        currentStep={tourStep}
+        setCurrentStep={setTourStep}
       />
 
     </div>
