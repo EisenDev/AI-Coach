@@ -64,6 +64,9 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
   const chatScrollBottomRef = useRef<HTMLDivElement>(null);
   const speechRecognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef<boolean>(false);
+  const speechIntervalRef = useRef<any>(null);
+  const finalTranscriptRef = useRef<string>('');
 
   // Load Sessions from Store
   const refreshSessions = () => {
@@ -83,6 +86,26 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     }
   }, [initialSessionId]);
 
+  // Keep isRecordingRef in sync with isVoiceRecording
+  useEffect(() => {
+    isRecordingRef.current = isVoiceRecording;
+  }, [isVoiceRecording]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (speechIntervalRef.current) {
+        clearInterval(speechIntervalRef.current);
+      }
+      if (speechRecognitionRef.current) {
+        speechRecognitionRef.current.stop();
+      }
+    };
+  }, []);
+
   // Auto-Trigger AI response if current session ended with an unanswered user message
   useEffect(() => {
     if (activeSession && activeSession.messages && activeSession.messages.length > 0) {
@@ -98,41 +121,76 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     chatScrollBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages, isAiResponding]);
 
-  // Web Speech STT Dictation Handler
+  // Web Speech STT Dictation Handler (Continuous Recording Fix)
   const handleToggleVoiceDictation = () => {
     if (isVoiceRecording) {
-      if (speechRecognitionRef.current) {
-        speechRecognitionRef.current.stop();
-      }
+      isRecordingRef.current = false;
       setIsVoiceRecording(false);
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch (e) {}
+      }
       return;
     }
 
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRec();
-      recognition.continuous = false;
+      
+      // FIX: Enable Continuous listening & Interim results so it NEVER stops after 1 second
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
+      finalTranscriptRef.current = inputMessage;
+
       recognition.onstart = () => {
+        isRecordingRef.current = true;
         setIsVoiceRecording(true);
       };
 
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((res: any) => res[0].transcript)
-          .join('');
-        setInputMessage(transcript);
+        let interim = '';
+        let final = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        if (final) {
+          finalTranscriptRef.current = (finalTranscriptRef.current ? finalTranscriptRef.current + ' ' : '') + final.trim();
+        }
+
+        const currentDisplay = (finalTranscriptRef.current ? finalTranscriptRef.current + ' ' : '') + interim;
+        setInputMessage(currentDisplay);
       };
 
       recognition.onerror = (err: any) => {
-        console.warn('Speech recognition error:', err);
-        setIsVoiceRecording(false);
+        console.warn('Speech recognition warning/error:', err);
+        // Do not immediately close if it is just a no-speech event
+        if (err.error !== 'no-speech' && err.error !== 'audio-capture') {
+          isRecordingRef.current = false;
+          setIsVoiceRecording(false);
+        }
       };
 
       recognition.onend = () => {
-        setIsVoiceRecording(false);
+        // Auto-restart if user has not explicitly stopped listening
+        if (isRecordingRef.current) {
+          try {
+            recognition.start();
+          } catch (e) {
+            isRecordingRef.current = false;
+            setIsVoiceRecording(false);
+          }
+        } else {
+          setIsVoiceRecording(false);
+        }
       };
 
       speechRecognitionRef.current = recognition;
@@ -257,6 +315,14 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
     const text = (textToSend || inputMessage).trim();
     if (!text || !activeSession || isAiResponding) return;
 
+    if (isVoiceRecording) {
+      isRecordingRef.current = false;
+      setIsVoiceRecording(false);
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch(e) {}
+      }
+    }
+
     const userMsg: ChatMessage = {
       id: `msg-user-${Date.now()}`,
       role: 'user',
@@ -267,32 +333,74 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
     const updatedMsgs = [...activeSession.messages, userMsg];
     saveSessionMessages(activeSession.id, updatedMsgs);
     setInputMessage('');
+    finalTranscriptRef.current = '';
     refreshSessions();
 
     triggerHardenedAiAnswer(text, { ...activeSession, messages: updatedMsgs });
   };
 
-  // Play/Pause AI Voice TTS
+  // COMPLETE Voice Playback (No 300 char truncation + Chrome Pause bug prevention)
   const handleToggleVoicePlayback = (msgId: string, text: string) => {
     if (activePlayingMsgId === msgId) {
       setActivePlayingMsgId(null);
+      if (speechIntervalRef.current) {
+        clearInterval(speechIntervalRef.current);
+      }
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
+      return;
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      if (speechIntervalRef.current) {
+        clearInterval(speechIntervalRef.current);
+      }
+
+      // Clean ALL markdown symbols, quotes, headers, and bullet characters cleanly
+      const cleanFullText = text
+        .replace(/###/g, '')
+        .replace(/##/g, '')
+        .replace(/\*\*/g, '')
+        .replace(/[*_~`>]/g, '')
+        .replace(/\[\d+\]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      setActivePlayingMsgId(msgId);
+
+      const speed = playbackSpeeds[msgId] || 1;
+      const utter = new SpeechSynthesisUtterance(cleanFullText);
+      utter.rate = speed;
+      utter.pitch = 1.0;
+      utter.lang = 'en-US';
+
+      utter.onend = () => {
+        setActivePlayingMsgId(null);
+        if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+      };
+
+      utter.onerror = (e) => {
+        console.warn('Speech synthesis error:', e);
+        setActivePlayingMsgId(null);
+        if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+      };
+
+      // Workaround for Chrome's 15s pause bug on long speech synthesis
+      speechIntervalRef.current = setInterval(() => {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        } else {
+          clearInterval(speechIntervalRef.current);
+        }
+      }, 5000);
+
+      window.speechSynthesis.speak(utter);
     } else {
       setActivePlayingMsgId(msgId);
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const cleanText = text.replace(/[*#>`]/g, '').slice(0, 300);
-        const speed = playbackSpeeds[msgId] || 1;
-        const utter = new SpeechSynthesisUtterance(cleanText);
-        utter.rate = speed;
-        utter.onend = () => setActivePlayingMsgId(null);
-        utter.onerror = () => setActivePlayingMsgId(null);
-        window.speechSynthesis.speak(utter);
-      } else {
-        setTimeout(() => setActivePlayingMsgId(null), 4000);
-      }
+      setTimeout(() => setActivePlayingMsgId(null), 5000);
     }
   };
 
@@ -301,6 +409,14 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
     const current = playbackSpeeds[msgId] || 1;
     const next = current === 1 ? 1.5 : current === 1.5 ? 2 : 1;
     setPlaybackSpeeds({ ...playbackSpeeds, [msgId]: next });
+
+    // If currently playing, restart with new speed
+    if (activePlayingMsgId === msgId) {
+      const msg = activeSession?.messages.find((m) => m.id === msgId);
+      if (msg) {
+        handleToggleVoicePlayback(msgId, msg.content);
+      }
+    }
   };
 
   const handleCreateNewSession = () => {
@@ -401,7 +517,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
                     <MarkdownContent content={msg.content} />
                   )}
 
-                  {/* AI Message Footer: Voice Response Button & RAG Verification */}
+                  {/* AI Message Footer: Complete Voice Response Button & RAG Verification */}
                   {!isUser && (
                     <div className="mt-4 pt-3 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
                       
@@ -411,7 +527,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
                           onClick={() => handleToggleVoicePlayback(msg.id, msg.content)}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition shadow-xs ${
                             isVoicePlaying
-                              ? 'bg-[#1E3A2B] text-white'
+                              ? 'bg-[#1E3A2B] text-white ring-2 ring-emerald-400'
                               : 'bg-white hover:bg-[#EBF3EA] text-[#1E3A2B] border border-slate-200 hover:border-[#2D5A3C]'
                           }`}
                         >
@@ -420,7 +536,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
                           ) : (
                             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                           )}
-                          <span>{isVoicePlaying ? 'Playing Voice Response...' : 'Voice Message'}</span>
+                          <span>{isVoicePlaying ? 'Speaking Full Response...' : 'Voice Message'}</span>
                         </button>
 
                         {/* Animated Waveform Pill */}
@@ -499,7 +615,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
               }}
               placeholder={
                 isVoiceRecording
-                  ? '🎙️ Listening... speak your clinical query now...'
+                  ? '🎙️ Listening continuously... speak your query...'
                   : 'Ask Aura about patient retention, 90-day churn, or clinical SOPs...'
               }
               className="flex-1 bg-transparent text-xs text-slate-900 placeholder-slate-400 focus:outline-none"
@@ -508,15 +624,15 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
             {/* Mic Dictation (STT) Button */}
             <button
               onClick={handleToggleVoiceDictation}
-              className={`p-2 rounded-xl transition flex items-center space-x-1 ${
+              className={`p-2 rounded-xl transition flex items-center space-x-1.5 ${
                 isVoiceRecording
-                  ? 'bg-rose-600 text-white animate-pulse'
+                  ? 'bg-rose-600 text-white animate-pulse shadow-xs'
                   : 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'
               }`}
-              title={isVoiceRecording ? 'Stop listening' : 'Dictate with voice (Speech to text)'}
+              title={isVoiceRecording ? 'Click to stop listening' : 'Dictate with voice (Continuous speech recognition)'}
             >
               <Mic className="w-4 h-4" />
-              {isVoiceRecording && <span className="text-[10px] font-mono font-bold">Listening</span>}
+              {isVoiceRecording && <span className="text-[10px] font-mono font-bold">Listening... (click to stop)</span>}
             </button>
 
             {/* Send Button */}
