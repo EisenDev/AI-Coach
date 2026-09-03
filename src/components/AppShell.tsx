@@ -18,7 +18,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [tourStep, setTourStep] = useState(1);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Derive active view from pathname
+  // Derive active view from pathname (7 Total Pages)
   const activeView: ViewType = pathname.includes('/coach')
     ? 'coach'
     : pathname.includes('/patients')
@@ -29,6 +29,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     ? 'sessions'
     : pathname.includes('/actions')
     ? 'actions'
+    : pathname.includes('/team')
+    ? 'team'
     : 'overview';
 
   const handleNavigate = (view: ViewType) => {

@@ -8,13 +8,14 @@ import {
   BookOpen,
   Calendar,
   CheckSquare,
+  Stethoscope,
   HelpCircle,
   ChevronDown,
   X,
 } from 'lucide-react';
 import { AuraLogo } from './AuraLogo';
 
-export type ViewType = 'overview' | 'coach' | 'patients' | 'knowledge' | 'sessions' | 'actions';
+export type ViewType = 'overview' | 'coach' | 'patients' | 'knowledge' | 'sessions' | 'actions' | 'team';
 
 interface SidebarProps {
   activeView: ViewType;
@@ -38,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'knowledge', label: 'Knowledge', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'sessions', label: 'Sessions', icon: <Calendar className="w-4 h-4" /> },
     { id: 'actions', label: 'Action Plans', icon: <CheckSquare className="w-4 h-4" /> },
+    { id: 'team', label: 'Team & Providers', icon: <Stethoscope className="w-4 h-4" /> },
   ];
 
   const handleSelectNav = (view: ViewType) => {
@@ -54,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }`}
     >
       {/* Top Section: Brand Logo & Navigation */}
-      <div className="p-6 space-y-7">
+      <div className="p-6 space-y-6">
         
         {/* Mobile Close Button (If Drawer) */}
         {isMobileDrawer && (
@@ -77,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="flex flex-col items-center text-center space-y-1.5 cursor-pointer group" 
           onClick={() => handleSelectNav('overview')}
         >
-          <AuraLogo size={46} />
+          <AuraLogo size={42} />
           <h1 className="text-sm font-serif font-bold tracking-widest text-slate-900 uppercase pt-1">
             AURA CLINIC
           </h1>
@@ -86,15 +88,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </p>
         </div>
 
-        {/* Nav Items */}
-        <nav className="space-y-1.5">
+        {/* Nav Items (7 Total Pages) */}
+        <nav className="space-y-1">
           {navItems.map((item) => {
             const isActive = activeView === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => handleSelectNav(item.id)}
-                className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
+                className={`w-full flex items-center space-x-3.5 px-3.5 py-2 rounded-xl text-xs font-medium transition-all text-left ${
                   isActive
                     ? 'bg-[#EBF3EA] text-[#1E3A2B] font-bold shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -125,15 +127,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="font-medium text-[13px]">Help & Guided Tour</span>
         </button>
 
-        {/* User Card */}
-        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-100/80 transition cursor-pointer">
+        {/* User Card (Links to Team) */}
+        <div 
+          onClick={() => handleSelectNav('team')}
+          className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-100/80 transition cursor-pointer"
+        >
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-full border border-amber-300 bg-amber-50 text-amber-900 font-serif font-bold text-xs flex items-center justify-center shadow-xs">
               CV
             </div>
             <div>
               <p className="text-xs font-bold text-slate-900 leading-tight">Dr. Chloe Vance</p>
-              <p className="text-[10px] text-slate-500 font-medium">Clinic Director</p>
+              <p className="text-[10px] text-slate-500 font-medium">Clinic Director (MD)</p>
             </div>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400" />

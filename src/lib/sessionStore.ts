@@ -166,7 +166,7 @@ const DEFAULT_SESSIONS: CoachSession[] = [
     id: 'session-q2-1',
     title: 'Q2 retention strategy review',
     createdAt: 'Jun 24, 2026',
-    updatedAt: '2026-06-24T11:00:00.000Z',
+    updatedAt: '2026-09-02T11:00:00.000Z',
     pinned: false,
     type: 'chat',
     messages: [],
@@ -174,9 +174,12 @@ const DEFAULT_SESSIONS: CoachSession[] = [
 ];
 
 const SESSIONS_KEY = 'aura_clinic_coach_sessions';
+let inMemorySessions: CoachSession[] = [...DEFAULT_SESSIONS];
 
 export const getStoredSessions = (): CoachSession[] => {
-  if (typeof window === 'undefined') return DEFAULT_SESSIONS;
+  if (typeof window === 'undefined') {
+    return inMemorySessions;
+  }
   const raw = localStorage.getItem(SESSIONS_KEY);
   if (!raw) {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(DEFAULT_SESSIONS));
@@ -192,8 +195,10 @@ export const getStoredSessions = (): CoachSession[] => {
 export const getActiveSessions = (): CoachSession[] => getStoredSessions();
 
 export const saveStoredSessions = (sessions: CoachSession[]): void => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  inMemorySessions = [...sessions];
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  }
 };
 
 export const getSessionById = (sessionId: string): CoachSession | undefined => {
@@ -210,9 +215,9 @@ export const deleteSession = (sessionId: string): CoachSession[] => {
 export const createOrGetPatientSession = (
   patientId: string,
   patientName: string,
-  treatment: string,
-  ltv: number,
-  lastVisit: string
+  treatment: string = 'Aesthetic Care',
+  ltv: number = 2500,
+  lastVisit: string = '2026-07-01'
 ): CoachSession => {
   const sessions = getStoredSessions();
   const existing = sessions.find((s) => s.patientId === patientId);
@@ -221,8 +226,8 @@ export const createOrGetPatientSession = (
   }
 
   const newSession: CoachSession = {
-    id: `session-p-${patientId}-${Date.now()}`,
-    title: `${patientName} — Retention & Care`,
+    id: `session-patient-${patientId}`,
+    title: `${patientName} — Retention Plan`,
     createdAt: new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
