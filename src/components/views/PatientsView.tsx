@@ -264,48 +264,48 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
       </div>
 
       {/* Top 4 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <Users className="w-4 h-4 text-slate-700" />
               <span>Total Patients</span>
             </div>
-            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">{totalPatients}</h3>
+            <h3 className="text-lg sm:text-2xl font-bold font-sans text-slate-900 mt-1">{totalPatients}</h3>
             <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">↑ +8% this quarter</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <CheckCircle2 className="w-4 h-4 text-emerald-700" />
               <span>Rebooking Rate</span>
             </div>
-            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">{rebookingRate}%</h3>
+            <h3 className="text-lg sm:text-2xl font-bold font-sans text-slate-900 mt-1">{rebookingRate}%</h3>
             <p className="text-[11px] text-slate-500 font-semibold mt-0.5">🎯 Goal 65%</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <Calendar className="w-4 h-4 text-amber-700" />
               <span>Follow-ups Due</span>
             </div>
-            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">{followUpsDue}</h3>
+            <h3 className="text-lg sm:text-2xl font-bold font-sans text-slate-900 mt-1">{followUpsDue}</h3>
             <p className="text-[11px] text-rose-700 font-semibold mt-0.5">↗ +3 vs last month</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <DollarSign className="w-4 h-4 text-amber-800" />
               <span>At-Risk Value</span>
             </div>
-            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">
+            <h3 className="text-lg sm:text-2xl font-bold font-sans text-slate-900 mt-1">
               ${atRiskValue.toLocaleString()}
             </h3>
             <p className="text-[11px] text-slate-500 font-semibold mt-0.5">↓ -12% vs last month</p>

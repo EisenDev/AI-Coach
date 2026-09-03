@@ -37,6 +37,8 @@ import {
   Sliders,
   AlertTriangle,
   X,
+  History,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 interface AiCoachViewProps {
@@ -63,6 +65,9 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   // Audio Voice Playback State (TTS per message)
   const [activePlayingMsgId, setActivePlayingMsgId] = useState<string | null>(null);
   const [playbackSpeeds, setPlaybackSpeeds] = useState<Record<string, number>>({});
+
+  // Mobile Sessions Drawer Open State
+  const [isMobileSessionsOpen, setIsMobileSessionsOpen] = useState(false);
 
   // Delete Confirmation Modal State
   const [sessionToDelete, setSessionToDelete] = useState<CoachSession | null>(null);
@@ -125,10 +130,9 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     chatScrollBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages, isAiResponding]);
 
-  // Web Speech STT Dictation Handler (Fast, Real-Time, Clear)
+  // Web Speech STT Dictation Handler
   const handleToggleVoiceDictation = () => {
     if (isVoiceRecording) {
-      // User clicked to stop mic: stop recognition, keep current text in input box
       isRecordingRef.current = false;
       setIsVoiceRecording(false);
       if (speechRecognitionRef.current) {
@@ -203,7 +207,6 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
         setIsVoiceRecording(false);
       }
     } else {
-      // Fallback simulated dictation
       setIsVoiceRecording(true);
       setTimeout(() => {
         setInputMessage('Why are some consultations not converting?');
@@ -319,7 +322,6 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
     const text = (textToSend || inputMessage).trim();
     if (!text || !activeSession || isAiResponding) return;
 
-    // Immediately stop speech recording and clear transcript buffers
     isRecordingRef.current = false;
     setIsVoiceRecording(false);
     finalTranscriptRef.current = '';
@@ -426,6 +428,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
   const handleCreateNewSession = () => {
     const created = createNewSession('chat', 'New Clinical Strategy Session');
     setCurrentSessionId(created.id);
+    setIsMobileSessionsOpen(false);
     refreshSessions();
     if (onNewSession) onNewSession(created.id);
   };
@@ -460,44 +463,55 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row h-full w-full gap-4 md:gap-5 overflow-y-auto lg:overflow-hidden select-none relative">
+    <div className="flex h-[calc(100vh-4.5rem)] md:h-[calc(100vh-2.5rem)] w-full gap-5 overflow-hidden select-none relative">
       
-      {/* MAIN CHAT WORKSPACE */}
-      <div className="flex-1 flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden relative">
+      {/* MAIN CHAT WORKSPACE (100% full screen on mobile like ChatGPT) */}
+      <div className="flex-1 flex flex-col bg-white rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden relative h-full">
         
-        {/* Sticky Header */}
-        <div className="px-6 py-3.5 bg-white/95 backdrop-blur border-b border-slate-100 flex items-center justify-between z-20 flex-shrink-0 sticky top-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-[#EBF3EA] border border-[#D5E6D3] text-[#1E3A2B] flex items-center justify-center font-serif font-bold text-xs">
+        {/* Header with Mobile Sessions Menu on Left */}
+        <div className="px-4 sm:px-6 py-3 bg-white/95 backdrop-blur border-b border-slate-100 flex items-center justify-between z-20 flex-shrink-0 sticky top-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            
+            {/* Mobile-Only Sessions Drawer Toggle (ChatGPT Style) */}
+            <button
+              onClick={() => setIsMobileSessionsOpen(!isMobileSessionsOpen)}
+              className="lg:hidden p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center space-x-1"
+              title="View Coaching Sessions"
+            >
+              <PanelLeftOpen className="w-4 h-4 text-slate-800" />
+            </button>
+
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#EBF3EA] border border-[#D5E6D3] text-[#1E3A2B] flex items-center justify-center font-serif font-bold text-xs flex-shrink-0">
               AI
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-sm font-bold text-slate-900 font-sans tracking-tight">
-                  {activeSession?.title || 'Clinical Retention Strategy Session'}
+            
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center space-x-2 truncate">
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900 font-sans tracking-tight truncate">
+                  {activeSession?.title || 'Clinical Strategy Session'}
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center space-x-1">
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 items-center space-x-1 flex-shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                   <span>Clinic data connected</span>
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-sans mt-0.5">
-                Powered by 50 patient records & Supabase pgvector
+              <p className="text-[9px] sm:text-[10px] text-slate-400 font-sans truncate">
+                50 patient records & pgvector active
               </p>
             </div>
           </div>
 
           <button
             onClick={handleCreateNewSession}
-            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold transition shadow-xs"
+            className="flex items-center space-x-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-[11px] sm:text-xs font-bold transition shadow-xs flex-shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>New session</span>
+            <span className="hidden sm:inline">New session</span>
           </button>
         </div>
 
         {/* Scrollable Chat History */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           {activeSession?.messages.map((msg) => {
             const isUser = msg.role === 'user';
             const isVoicePlaying = activePlayingMsgId === msg.id;
@@ -506,14 +520,14 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1.5`}
+                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}
               >
                 <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider px-1">
-                  {isUser ? `Dr. Chloe Vance · ${msg.timestamp || msg.time || '10:02 AM'}` : `Aura AI Practice Coach · ${msg.timestamp || msg.time || '10:03 AM'}`}
+                  {isUser ? `Dr. Vance · ${msg.timestamp || msg.time || '10:02 AM'}` : `Aura AI · ${msg.timestamp || msg.time || '10:03 AM'}`}
                 </span>
 
                 <div
-                  className={`max-w-2xl p-5 rounded-3xl text-xs sm:text-[13px] leading-relaxed shadow-xs ${
+                  className={`max-w-2xl p-4 sm:p-5 rounded-3xl text-xs sm:text-[13px] leading-relaxed shadow-xs ${
                     isUser
                       ? 'bg-[#1E3A2B] text-white rounded-br-none font-sans font-medium'
                       : 'bg-[#FAF9F6] text-slate-800 border border-slate-200/90 rounded-bl-none font-sans'
@@ -528,13 +542,13 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
 
                   {/* AI Message Footer: Complete Voice Response Button & RAG Verification */}
                   {!isUser && (
-                    <div className="mt-4 pt-3 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
                       
                       {/* Voice Message / TTS Playback Pill */}
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleToggleVoicePlayback(msg.id, msg.content)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition shadow-xs ${
+                          className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 sm:space-x-2 transition shadow-xs ${
                             isVoicePlaying
                               ? 'bg-[#1E3A2B] text-white ring-2 ring-emerald-400'
                               : 'bg-white hover:bg-[#EBF3EA] text-[#1E3A2B] border border-slate-200 hover:border-[#2D5A3C]'
@@ -545,11 +559,11 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
                           ) : (
                             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                           )}
-                          <span>{isVoicePlaying ? 'Speaking Full Response...' : 'Voice Message'}</span>
+                          <span>{isVoicePlaying ? 'Speaking...' : 'Voice Message'}</span>
                         </button>
 
                         {/* Animated Waveform Pill */}
-                        <div className="flex items-center space-x-0.5 h-5 px-2 bg-slate-100 rounded-lg">
+                        <div className="flex items-center space-x-0.5 h-4 sm:h-5 px-1.5 sm:px-2 bg-slate-100 rounded-lg">
                           {[30, 70, 45, 90, 60, 80, 40, 65, 85, 50].map((h, idx) => (
                             <div
                               key={idx}
@@ -564,15 +578,15 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
                         {/* Speed Toggle */}
                         <button
                           onClick={(e) => cycleSpeed(msg.id, e)}
-                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-mono font-bold text-slate-700"
+                          className="px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-mono font-bold text-slate-700"
                         >
                           {speed}x
                         </button>
                       </div>
 
                       {/* Evidence Tag */}
-                      <span className="text-[10px] font-mono text-slate-400">
-                        {msg.evidence || 'Checked 50 patient records · VIP Retention SOP · 1.9s'}
+                      <span className="text-[9px] sm:text-[10px] font-mono text-slate-400">
+                        {msg.evidence || 'Checked 50 patient records · 1.9s'}
                       </span>
 
                     </div>
@@ -593,7 +607,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
         </div>
 
         {/* Floating Starter Cards + Live Mic Dictation Input Pill */}
-        <div className="p-4 bg-white/95 border-t border-slate-100 space-y-2.5 z-10">
+        <div className="p-3 sm:p-4 bg-white/95 border-t border-slate-100 space-y-2 z-10">
           
           {/* 4 Floating Starter Buttons */}
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
@@ -601,7 +615,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
               <button
                 key={i}
                 onClick={() => handleSendMessage(qs.query)}
-                className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-[#EBF3EA] border border-slate-200/80 hover:border-[#2D5A3C] text-slate-700 hover:text-[#1E3A2B] text-xs font-medium transition flex items-center space-x-1.5"
+                className="flex-shrink-0 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-slate-50 hover:bg-[#EBF3EA] border border-slate-200/80 hover:border-[#2D5A3C] text-slate-700 hover:text-[#1E3A2B] text-[11px] sm:text-xs font-medium transition flex items-center space-x-1.5"
               >
                 <Sparkles className="w-3 h-3 text-amber-600" />
                 <span>{qs.label}</span>
@@ -611,7 +625,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
 
           {/* Unified Input Dock */}
           <div
-            className={`flex items-center space-x-2 bg-[#FAF9F6] border rounded-2xl px-4 py-2 transition shadow-xs ${
+            className={`flex items-center space-x-2 bg-[#FAF9F6] border rounded-2xl px-3 sm:px-4 py-2 transition shadow-xs ${
               isVoiceRecording ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200' : 'border-slate-200 focus-within:border-amber-500'
             }`}
           >
@@ -625,7 +639,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
               placeholder={
                 isVoiceRecording
                   ? '🎙️ Listening... speak now (click mic to stop)...'
-                  : 'Ask Aura about patient retention, 90-day churn, or clinical SOPs...'
+                  : 'Ask Aura about retention, 90-day churn, or SOPs...'
               }
               className="flex-1 bg-transparent text-xs text-slate-900 placeholder-slate-400 focus:outline-none"
             />
@@ -633,7 +647,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
             {/* Mic Dictation (STT) Button */}
             <button
               onClick={handleToggleVoiceDictation}
-              className={`p-2 rounded-xl transition flex items-center space-x-1.5 ${
+              className={`p-1.5 sm:p-2 rounded-xl transition flex items-center space-x-1 ${
                 isVoiceRecording
                   ? 'bg-rose-600 text-white animate-pulse shadow-xs'
                   : 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'
@@ -648,21 +662,21 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
             <button
               onClick={() => handleSendMessage()}
               disabled={!inputMessage.trim() || isAiResponding}
-              className="p-2 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white disabled:opacity-40 transition shadow-xs"
+              className="p-1.5 sm:p-2 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white disabled:opacity-40 transition shadow-xs"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <p className="text-[10px] text-center text-slate-400 font-sans">
+          <p className="text-[9px] sm:text-[10px] text-center text-slate-400 font-sans">
             🔒 Aura queries 50 real patient records and clinical SOPs via Railway n8n pgvector.
           </p>
         </div>
 
       </div>
 
-      {/* RIGHT SIDEBAR: PINNED & RECENT SESSIONS */}
-      <div className="w-full lg:w-80 flex flex-col space-y-4 flex-shrink-0 pb-6 lg:pb-0">
+      {/* DESKTOP RIGHT SIDEBAR (Hidden on mobile < lg) */}
+      <div className="hidden lg:flex w-80 flex-col space-y-4 flex-shrink-0">
         
         {/* Pinned Sessions */}
         <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3">
@@ -771,6 +785,98 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
         </div>
 
       </div>
+
+      {/* MOBILE SESSIONS SLIDE-IN DRAWER (ChatGPT Style Popover / Drawer) */}
+      {isMobileSessionsOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex animate-fadeIn">
+          {/* Backdrop */}
+          <div
+            onClick={() => setIsMobileSessionsOpen(false)}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+          />
+
+          {/* Drawer Content */}
+          <div className="relative z-10 w-72 bg-white h-full shadow-2xl p-5 flex flex-col justify-between space-y-4 animate-slideRight">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center space-x-2 text-xs font-bold text-slate-900">
+                  <History className="w-4 h-4 text-[#1E3A2B]" />
+                  <span>Coaching Sessions</span>
+                </div>
+                <button
+                  onClick={() => setIsMobileSessionsOpen(false)}
+                  className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                onClick={handleCreateNewSession}
+                className="w-full py-2 px-3 rounded-xl bg-[#1E3A2B] text-white text-xs font-bold flex items-center justify-center space-x-1.5 shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Session</span>
+              </button>
+
+              {/* Pinned on Mobile */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Pinned ({pinnedSessions.length})
+                </span>
+                <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                  {pinnedSessions.map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => {
+                        setCurrentSessionId(s.id);
+                        setIsMobileSessionsOpen(false);
+                      }}
+                      className={`p-2 rounded-xl text-xs font-bold cursor-pointer transition ${
+                        s.id === currentSessionId
+                          ? 'bg-[#EBF3EA] text-[#1E3A2B]'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <p className="truncate">{s.title}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent on Mobile */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Recent ({recentSessions.length})
+                </span>
+                <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+                  {recentSessions.map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => {
+                        setCurrentSessionId(s.id);
+                        setIsMobileSessionsOpen(false);
+                      }}
+                      className={`p-2 rounded-xl text-xs font-bold cursor-pointer transition ${
+                        s.id === currentSessionId
+                          ? 'bg-[#EBF3EA] text-[#1E3A2B]'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <p className="truncate">{s.title}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs flex items-center justify-between">
+              <span className="text-slate-600 font-medium">Practice Records</span>
+              <span className="font-bold text-[#1E3A2B] font-mono">50 Patients</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Coaching Session Confirmation Modal */}
       {sessionToDelete && (

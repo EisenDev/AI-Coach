@@ -211,30 +211,30 @@ export const KnowledgeView: React.FC = () => {
       </div>
 
       {/* Top 4 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <BookOpen className="w-4 h-4 text-slate-700" />
               <span>Documents</span>
             </div>
-            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">{docs.length}</h3>
+            <h3 className="text-lg sm:text-2xl font-bold font-sans text-slate-900 mt-1">{docs.length}</h3>
             <p className="text-[11px] text-slate-400 mt-0.5 font-sans">5 core SOPs active</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <Layers className="w-4 h-4 text-emerald-700" />
               <span>Knowledge Chunks</span>
             </div>
-            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">{totalChunks}</h3>
+            <h3 className="text-lg sm:text-2xl font-bold font-sans text-slate-900 mt-1">{totalChunks}</h3>
             <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">Indexed vectors</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <Database className="w-4 h-4 text-amber-700" />
@@ -245,7 +245,7 @@ export const KnowledgeView: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
