@@ -55,7 +55,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-[#FDFDFC] text-slate-900 font-sans antialiased overflow-hidden selection:bg-[#D5E6D3] selection:text-[#1E3A2B]">
+    <div className="flex h-screen bg-[#FAF9F6] text-slate-900 font-sans antialiased overflow-hidden selection:bg-[#D5E6D3] selection:text-[#1E3A2B]">
       
       {/* Left Sidebar Navigation */}
       <Sidebar
@@ -64,8 +64,8 @@ export default function Home() {
         onOpenHelp={handleOpenHelp}
       />
 
-      {/* Main Content Workspace (Scrollable) */}
-      <main className="flex-1 overflow-y-auto px-6 sm:px-10 py-8">
+      {/* Main Content Workspace - Compact Full Width without artificial margins */}
+      <main className="flex-1 h-screen overflow-y-auto px-5 sm:px-8 py-5">
         {activeView === 'overview' && (
           <OverviewView
             onOpenCoach={() => setActiveView('coach')}

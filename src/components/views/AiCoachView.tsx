@@ -29,7 +29,6 @@ import {
   Zap,
   MoreHorizontal,
   ChevronUp,
-  ChevronDown,
 } from 'lucide-react';
 
 interface Message {
@@ -63,7 +62,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-  const [voiceSeconds, setVoiceSeconds] = useState(272); // 04:32
+  const [voiceSeconds, setVoiceSeconds] = useState(289); // 04:49
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryText, setSummaryText] = useState('');
 
@@ -282,21 +281,83 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Helper to render basic markdown formatting cleanly
+  const renderFormattedText = (text: string) => {
+    const paragraphs = text.split('\n\n');
+    return (
+      <div className="space-y-3 font-sans">
+        {paragraphs.map((para, pIdx) => {
+          const lines = para.split('\n');
+          return (
+            <div key={pIdx} className="space-y-1">
+              {lines.map((line, lIdx) => {
+                const trimmed = line.trim();
+                // Check for bullet points
+                if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
+                  const content = trimmed.substring(2);
+                  return (
+                    <div key={lIdx} className="flex items-start space-x-2 pl-2">
+                      <span className="text-[#2D5A3C] font-bold">•</span>
+                      <span>{renderInlineFormatting(content)}</span>
+                    </div>
+                  );
+                }
+                // Check for numbered list
+                const numberedMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+                if (numberedMatch) {
+                  return (
+                    <div key={lIdx} className="flex items-start space-x-2 pl-2">
+                      <span className="font-bold text-[#1E3A2B] font-mono text-xs">{numberedMatch[1]}.</span>
+                      <span>{renderInlineFormatting(numberedMatch[2])}</span>
+                    </div>
+                  );
+                }
+                // Regular line
+                return <p key={lIdx}>{renderInlineFormatting(line)}</p>;
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderInlineFormatting = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={index} className="font-bold text-slate-900">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (part.startsWith('*') && part.endsWith('*')) {
+        return (
+          <em key={index} className="italic text-slate-800">
+            {part.slice(1, -1)}
+          </em>
+        );
+      }
+      return part;
+    });
+  };
+
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
   const lastAiMessage = [...messages].reverse().find((m) => m.role === 'assistant');
 
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-5rem)] flex flex-col">
+    <div className="w-full h-[calc(100vh-2.5rem)] flex gap-5 overflow-hidden">
       
       {/* MODE 1: LIVE VOICE COACHING (Screen 2) */}
       {coachMode === 'voice' ? (
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="flex-1 flex gap-5 h-full overflow-hidden">
           
-          {/* Main Voice Center: 8 Cols */}
-          <div className="lg:col-span-8 flex flex-col justify-between space-y-6">
+          {/* Main Voice Center Box */}
+          <div className="flex-1 flex flex-col justify-between bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 overflow-y-auto">
             
             {/* Top Bar */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setCoachMode('chat')}
@@ -322,13 +383,13 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             </div>
 
             {/* Central Animated Soundwave Orb */}
-            <div className="flex flex-col items-center justify-center text-center space-y-5 py-2">
+            <div className="flex flex-col items-center justify-center text-center space-y-5 py-4">
               <span className="text-[11px] font-bold tracking-widest text-emerald-800 uppercase font-mono">
                 {isListening ? 'AURA IS LISTENING' : isPlayingAudio ? 'AURA IS SPEAKING' : 'AURA READY'}
               </span>
 
               {/* Concentric Green Rings */}
-              <div className="relative w-52 h-52 flex items-center justify-center">
+              <div className="relative w-56 h-56 flex items-center justify-center">
                 <div className={`absolute inset-0 rounded-full border border-emerald-600/20 ${isListening || isPlayingAudio ? 'animate-ping duration-1000' : ''}`} />
                 <div className="absolute inset-4 rounded-full border border-emerald-600/30" />
                 <div className="absolute inset-8 rounded-full border border-emerald-600/40" />
@@ -349,23 +410,21 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               </div>
 
               {/* Spoken Query in Serif */}
-              <h4 className="text-base sm:text-lg font-serif font-bold text-slate-900 max-w-lg leading-snug">
+              <h4 className="text-base sm:text-lg font-serif font-bold text-slate-900 max-w-xl leading-snug">
                 &ldquo;{lastUserMessage ? lastUserMessage.content : 'Which high-value patients have not returned in the last 90 days?'}&rdquo;
               </h4>
             </div>
 
             {/* AI Response Card */}
-            <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/80 space-y-3 shadow-xs">
+            <div className="bg-slate-50/90 rounded-2xl p-5 border border-slate-200/80 space-y-3 shadow-xs max-w-2xl mx-auto w-full">
               <div className="flex items-start space-x-3">
                 <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 flex-shrink-0 mt-0.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-800 leading-relaxed font-sans font-medium">
-                    {lastAiMessage
-                      ? lastAiMessage.content
-                      : 'I found three high-value patients who should be contacted this week. Together, they represent $13,600 in lifetime value.'}
-                  </p>
+                <div className="space-y-1 text-xs text-slate-800 leading-relaxed font-sans font-medium">
+                  {lastAiMessage ? renderFormattedText(lastAiMessage.content) : (
+                    <p>I found three high-value patients who should be contacted this week. Together, they represent $13,600 in lifetime value.</p>
+                  )}
                 </div>
               </div>
 
@@ -388,7 +447,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             </div>
 
             {/* Bottom Controls Bar */}
-            <div className="flex items-center justify-center space-x-8 pt-2">
+            <div className="flex items-center justify-center space-x-8 pt-4 border-t border-slate-100">
               <button
                 onClick={toggleMic}
                 className="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-900"
@@ -429,8 +488,8 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
           </div>
 
-          {/* Right Context Panel: 4 Cols */}
-          <div className="lg:col-span-4 space-y-4 border-l border-slate-100 pl-6 flex flex-col justify-between">
+          {/* Right Fixed / Floating Context Panel */}
+          <div className="w-80 flex-shrink-0 flex flex-col gap-4 h-full overflow-y-auto">
             
             {/* Live Context Card */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
@@ -506,7 +565,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   <h4 className="text-xs font-bold font-sans">Session notes</h4>
                 </div>
                 <span className="flex items-center space-x-1 text-[10px] font-medium text-emerald-800">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Auto-saved</span>
                 </span>
               </div>
@@ -521,14 +580,14 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
         </div>
       ) : (
-        /* MODE 2: CHAT & DICTATION MODE (Screen 3) */
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs overflow-hidden">
+        /* MODE 2: CHAT & DICTATION MODE (ChatGPT Full Page Layout) */
+        <div className="flex-1 flex gap-5 h-full overflow-hidden">
           
-          {/* Main Chat Center */}
-          <div className={`${isPanelCollapsed ? 'lg:col-span-12' : 'lg:col-span-8'} flex flex-col justify-between space-y-4`}>
+          {/* Main ChatGPT-style Conversation Box */}
+          <div className="flex-1 flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden relative">
             
             {/* Top Bar */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur z-10">
               <div className="flex items-center space-x-3">
                 <h3 className="text-base font-serif font-bold text-slate-900">AI Coach</h3>
                 <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -540,39 +599,39 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               <div className="flex items-center space-x-2">
                 <button
                   onClick={onNewSession}
-                  className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-slate-200"
+                  className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-slate-200 transition"
                   title="New Session"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
-                <button className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-slate-200">
+                <button className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-slate-200 transition">
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Conversation Stream or Welcome State */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            {/* Conversation Messages Stream (Scrolls smoothly) */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
               {messages.length === 0 ? (
                 /* Welcome Screen */
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 py-6">
-                  <AuraLogo size={52} />
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 py-8">
+                  <AuraLogo size={56} />
 
-                  <div className="space-y-1 max-w-md">
-                    <h3 className="text-2xl font-serif font-bold text-slate-900">
+                  <div className="space-y-1.5 max-w-md">
+                    <h3 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900">
                       How can I help your clinic today?
                     </h3>
-                    <p className="text-xs text-slate-500 font-sans">
+                    <p className="text-xs sm:text-sm text-slate-500 font-sans">
                       Ask about revenue, conversions, retention, patients, pricing, or clinic procedures.
                     </p>
                   </div>
 
                   {/* 4 Quick Starter Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full max-w-3xl text-left pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 w-full max-w-4xl text-left pt-3">
                     
                     <button
                       onClick={() => handleSendMessage("Which patients need follow-up?")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
+                      className="p-5 rounded-2xl border border-slate-200/90 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2.5 group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-[#EBF3EA] text-[#1E3A2B] flex items-center justify-center">
                         <Users className="w-4 h-4" />
@@ -584,7 +643,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
                     <button
                       onClick={() => handleSendMessage("Why are consultations not converting?")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
+                      className="p-5 rounded-2xl border border-slate-200/90 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2.5 group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-800 flex items-center justify-center">
                         <TrendingUp className="w-4 h-4" />
@@ -596,7 +655,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
                     <button
                       onClick={() => handleSendMessage("What does our pricing policy say?")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
+                      className="p-5 rounded-2xl border border-slate-200/90 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2.5 group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
                         <BookOpen className="w-4 h-4" />
@@ -608,7 +667,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
                     <button
                       onClick={() => handleSendMessage("Build a 7-day retention plan")}
-                      className="p-4 rounded-2xl border border-slate-200/80 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2 group"
+                      className="p-5 rounded-2xl border border-slate-200/90 hover:border-[#1E3A2B] bg-white hover:bg-slate-50 transition shadow-xs flex flex-col items-center text-center space-y-2.5 group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
                         <Target className="w-4 h-4" />
@@ -621,38 +680,38 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   </div>
                 </div>
               ) : (
-                /* Chat Messages List */
+                /* Chat Messages List (ChatGPT Formatted) */
                 messages.map((m) => {
                   const isAI = m.role === 'assistant';
                   return (
                     <div
                       key={m.id}
-                      className={`flex flex-col ${isAI ? 'items-start' : 'items-end'} space-y-1`}
+                      className={`flex flex-col ${isAI ? 'items-start' : 'items-end'} space-y-1.5`}
                     >
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                        {isAI ? 'Aura AI Practice Intelligence' : 'Dr. Chloe Vance'} · {m.time}
+                        {isAI ? 'AURA AI PRACTICE INTELLIGENCE' : 'Dr. Chloe Vance'} · {m.time}
                       </span>
 
                       <div
-                        className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed ${
+                        className={`max-w-[85%] rounded-2xl p-5 text-xs sm:text-[13px] leading-relaxed font-sans ${
                           isAI
-                            ? 'bg-slate-50 border border-slate-200 text-slate-900 rounded-tl-xs shadow-xs font-sans'
-                            : 'bg-[#1E3A2B] text-white rounded-tr-xs font-sans shadow-xs'
+                            ? 'bg-slate-50 border border-slate-200 text-slate-900 rounded-tl-xs shadow-xs'
+                            : 'bg-[#1E3A2B] text-white rounded-tr-xs shadow-xs'
                         }`}
                       >
-                        <div className="whitespace-pre-wrap">{m.content}</div>
+                        {isAI ? renderFormattedText(m.content) : <div>{m.content}</div>}
 
                         {isAI && (
-                          <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
+                          <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
                             <button
                               onClick={() => playTTS(m.content)}
-                              className="flex items-center space-x-1 text-[#1E3A2B] font-bold hover:underline"
+                              className="flex items-center space-x-1.5 text-[#1E3A2B] font-bold hover:underline"
                             >
                               <Volume2 className="w-3.5 h-3.5" />
                               <span>Replay Voice</span>
                             </button>
                             {m.evidence && (
-                              <span className="text-slate-400 text-[10px]">{m.evidence}</span>
+                              <span className="text-slate-400 text-[10px] font-mono">{m.evidence}</span>
                             )}
                           </div>
                         )}
@@ -663,7 +722,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               )}
 
               {isLoading && (
-                <div className="flex items-center space-x-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
+                <div className="flex items-center space-x-2 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
                   <Zap className="w-4 h-4 animate-bounce text-emerald-700" />
                   <span>Aura is reasoning across 50 patient records & clinic knowledge...</span>
                 </div>
@@ -672,14 +731,14 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Bottom Input Bar */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
+            {/* Floating Bottom Input Dock */}
+            <div className="p-4 bg-white/95 backdrop-blur border-t border-slate-100 flex flex-col items-center gap-2">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   handleSendMessage();
                 }}
-                className="flex items-center space-x-2 bg-slate-50 p-2 rounded-full border border-slate-200 shadow-xs"
+                className="w-full max-w-3xl flex items-center space-x-2 bg-slate-50 p-2 rounded-full border border-slate-200 shadow-xs"
               >
                 <button
                   type="button"
@@ -710,7 +769,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
 
-                {/* Live Voice Mode Toggle Button (Waveform) */}
+                {/* Live Voice Mode Switcher (Waveform Button) */}
                 <button
                   type="button"
                   onClick={() => setCoachMode('voice')}
@@ -737,9 +796,9 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
 
           </div>
 
-          {/* Right Context & Recent Conversations Panel: 4 Cols */}
+          {/* Right Fixed / Floating Context Panel (Does NOT scroll with chat stream) */}
           {!isPanelCollapsed && (
-            <div className="lg:col-span-4 space-y-4 border-l border-slate-100 pl-6 flex flex-col justify-between">
+            <div className="w-80 flex-shrink-0 flex flex-col justify-between h-full">
               
               <div className="space-y-4">
                 

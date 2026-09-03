@@ -31,7 +31,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onOpenActions,
 }) => {
   return (
-    <div className="space-y-6 pb-12 max-w-7xl mx-auto">
+    <div className="space-y-6 pb-12 w-full">
       
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
