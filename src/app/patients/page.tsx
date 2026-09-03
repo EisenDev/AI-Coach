@@ -10,11 +10,11 @@ function PatientsContent() {
   const searchParams = useSearchParams();
   const filter = searchParams.get('filter') || 'all';
 
-  const handleCoach = (prompt: string, sessionId?: string) => {
+  const handleCoach = (prompt: string, sessionId?: string, mode: 'chat' | 'voice' = 'chat') => {
     if (sessionId) {
-      router.push(`/coach?sessionId=${sessionId}`);
+      router.push(`/coach?sessionId=${sessionId}&mode=${mode}`);
     } else {
-      router.push(`/coach?prompt=${encodeURIComponent(prompt)}`);
+      router.push(`/coach?prompt=${encodeURIComponent(prompt)}&mode=${mode}`);
     }
   };
 

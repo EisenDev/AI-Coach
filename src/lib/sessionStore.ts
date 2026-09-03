@@ -1,9 +1,21 @@
+'use client';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  time: string;
+  timestamp?: string;
+  time?: string;
   evidence?: string;
+}
+
+export interface VoiceAudioMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  audioUrl?: string;
+  durationText: string;
+  timestamp: string;
+  transcript?: string;
 }
 
 export interface CoachSession {
@@ -16,6 +28,8 @@ export interface CoachSession {
   patientId?: string;
   patientName?: string;
   messages: ChatMessage[];
+  voiceAudioMessages?: VoiceAudioMessage[];
+  notes?: string[];
   voiceDuration?: string;
   summary?: string;
 }
@@ -28,13 +42,14 @@ const DEFAULT_SESSIONS: CoachSession[] = [
     updatedAt: '2026-09-03T02:02:00.000Z',
     pinned: true,
     type: 'chat',
-    patientId: 'p-1',
+    patientId: 'cust-001',
     patientName: 'Victoria Kensington',
     messages: [
       {
         id: 'msg-v1',
         role: 'user',
         content: 'How should we reach out to Victoria Kensington, who spent $6800 on Full Face Liquid Facelift with Dr. Chloe Vance, MD on 2026-06-30 and hasn\'t rebooked yet? Draft a personalized retention strategy.',
+        timestamp: '10:02 AM',
         time: '10:02 AM',
       },
       {
@@ -54,9 +69,31 @@ const DEFAULT_SESSIONS: CoachSession[] = [
 - **Today:** Draft and send the email (personalized with her procedure date).
 - **Within 48 hours:** Have your front desk call her with a friendly, non-salesy voicemail if no response.
 - **This week:** Track her response. If she books the consult, prepare a tailored maintenance plan ($2,000–$3,500 annually).`,
+        timestamp: '10:03 AM',
         time: '10:03 AM',
         evidence: 'Checked 50 patient records · VIP Retention SOP · 2.4s',
       },
+    ],
+    voiceAudioMessages: [
+      {
+        id: 'va-1',
+        role: 'user',
+        durationText: '0:14',
+        timestamp: '10:02 AM',
+        transcript: 'How should we reach out to Victoria Kensington who spent $6,800 on Liquid Facelift?',
+      },
+      {
+        id: 'va-2',
+        role: 'assistant',
+        durationText: '0:38',
+        timestamp: '10:03 AM',
+        transcript: 'Victoria has invested $6,800. Send a personalized email from Dr. Vance followed by complimentary 10-minute touch up review.',
+      },
+    ],
+    notes: [
+      'Dr. Vance (10:02 AM): "How should we reach out to Victoria Kensington who spent $6800 on Liquid Facelift?"',
+      'AI Coach (10:03 AM): "Victoria invested $6,800. Send a personalized email from Dr. Vance followed by complimentary 10-minute review."',
+      'Action: Front desk to call Thursday morning if no email response within 48 hours.',
     ],
   },
   {
@@ -73,15 +110,34 @@ const DEFAULT_SESSIONS: CoachSession[] = [
         id: 'msg-vc1',
         role: 'user',
         content: 'Which high-value patients have not returned in the last 90 days?',
-        time: '09:48 AM',
+        timestamp: '09:48 AM',
       },
       {
         id: 'msg-vc2',
         role: 'assistant',
         content: 'I found three high-value patients who should be contacted this week: Victoria Kensington ($6,800), Isabella Cruz ($3,600), and Daniel Kim ($3,200). Together, they represent $13,600 in lifetime value.',
-        time: '09:49 AM',
-        evidence: 'Checked 50 patient records · VIP Retention SOP · 2.4s',
+        timestamp: '09:49 AM',
       },
+    ],
+    voiceAudioMessages: [
+      {
+        id: 'va-v1',
+        role: 'user',
+        durationText: '0:09',
+        timestamp: '09:48 AM',
+        transcript: 'Which high-value patients have not returned in the last 90 days?',
+      },
+      {
+        id: 'va-v2',
+        role: 'assistant',
+        durationText: '0:26',
+        timestamp: '09:49 AM',
+        transcript: 'Found 3 high-value patients: Victoria Kensington ($6,800), Isabella Cruz ($3,600), and Daniel Kim ($3,200).',
+      },
+    ],
+    notes: [
+      'Dr. Vance (09:48 AM): "Which high-value patients have not returned in the last 90 days?"',
+      'AI Coach (09:49 AM): "Identified Victoria Kensington, Isabella Cruz, and Daniel Kim ($13,600 at-risk LTV)."',
     ],
   },
   {
@@ -96,14 +152,13 @@ const DEFAULT_SESSIONS: CoachSession[] = [
         id: 'msg-c1',
         role: 'user',
         content: 'Why are consultations not converting for CoolSculpting?',
-        time: 'Yesterday',
+        timestamp: 'Yesterday',
       },
       {
         id: 'msg-c2',
         role: 'assistant',
         content: 'Consultation drop-offs are primarily tied to price objections without visual roadmap previews. Structuring 3D imaging during consults increases closing rates by 22%.',
-        time: 'Yesterday',
-        evidence: 'Checked 50 patient records · Consultation SOP · 1.8s',
+        timestamp: 'Yesterday',
       },
     ],
   },
@@ -134,6 +189,8 @@ export const getStoredSessions = (): CoachSession[] => {
   }
 };
 
+export const getActiveSessions = (): CoachSession[] => getStoredSessions();
+
 export const saveStoredSessions = (sessions: CoachSession[]): void => {
   if (typeof window === 'undefined') return;
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
@@ -144,9 +201,10 @@ export const getSessionById = (sessionId: string): CoachSession | undefined => {
   return sessions.find((s) => s.id === sessionId);
 };
 
-export const getSessionForPatient = (patientId: string): CoachSession | undefined => {
-  const sessions = getStoredSessions();
-  return sessions.find((s) => s.patientId === patientId);
+export const deleteSession = (sessionId: string): CoachSession[] => {
+  const sessions = getStoredSessions().filter((s) => s.id !== sessionId);
+  saveStoredSessions(sessions);
+  return sessions;
 };
 
 export const createOrGetPatientSession = (
@@ -180,8 +238,21 @@ export const createOrGetPatientSession = (
         id: `msg-${Date.now()}`,
         role: 'user',
         content: `How should we reach out to ${patientName}, who spent $${ltv.toLocaleString()} on ${treatment} with Aura Clinic on ${lastVisit} and hasn't rebooked yet? Draft a personalized retention strategy.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
+    ],
+    voiceAudioMessages: [
+      {
+        id: `va-${Date.now()}`,
+        role: 'user',
+        durationText: '0:12',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        transcript: `How should we reach out to ${patientName} on ${treatment}?`,
+      },
+    ],
+    notes: [
+      `Dr. Vance (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}): "Initiated retention session for ${patientName} ($${ltv.toLocaleString()} spend)."`,
     ],
   };
 
@@ -190,12 +261,12 @@ export const createOrGetPatientSession = (
   return newSession;
 };
 
-export const createNewSession = (type: 'chat' | 'voice' = 'chat'): CoachSession => {
+export const createNewSession = (type: 'chat' | 'voice' = 'chat', customTitle?: string): CoachSession => {
   const sessions = getStoredSessions();
   const dateStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const newSession: CoachSession = {
     id: `session-${Date.now()}`,
-    title: `New Coaching Session (${dateStr})`,
+    title: customTitle || `New Coaching Session (${dateStr})`,
     createdAt: new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -205,6 +276,8 @@ export const createNewSession = (type: 'chat' | 'voice' = 'chat'): CoachSession 
     pinned: false,
     type,
     messages: [],
+    voiceAudioMessages: [],
+    notes: [],
   };
 
   const updated = [newSession, ...sessions];
@@ -221,16 +294,17 @@ export const togglePinSession = (sessionId: string): CoachSession[] => {
   return updated;
 };
 
-export const updateSessionMessages = (
+export const saveSessionMessages = (
   sessionId: string,
   messages: ChatMessage[],
+  voiceAudioMessages?: VoiceAudioMessage[],
+  notes?: string[],
   summary?: string
 ): void => {
   const sessions = getStoredSessions();
   const updated = sessions.map((s) => {
     if (s.id === sessionId) {
       let title = s.title;
-      // Auto-title from first user message if default
       if (s.title.startsWith('New Coaching Session') && messages.length > 0) {
         const firstUser = messages.find((m) => m.role === 'user');
         if (firstUser) {
@@ -241,6 +315,8 @@ export const updateSessionMessages = (
         ...s,
         title,
         messages,
+        voiceAudioMessages: voiceAudioMessages || s.voiceAudioMessages,
+        notes: notes || s.notes,
         summary: summary || s.summary,
         updatedAt: new Date().toISOString(),
       };
@@ -249,3 +325,5 @@ export const updateSessionMessages = (
   });
   saveStoredSessions(updated);
 };
+
+export const updateSessionMessages = saveSessionMessages;

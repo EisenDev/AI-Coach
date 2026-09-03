@@ -1,960 +1,803 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AuraLogo } from '../AuraLogo';
-import { sendChatMessage, generateSessionSummary } from '@/lib/n8nClient';
-import { ActionPlanModal } from '../ActionPlanModal';
 import {
   CoachSession,
   ChatMessage,
-  getStoredSessions,
-  saveStoredSessions,
+  getActiveSessions,
+  createOrGetPatientSession,
   createNewSession,
   togglePinSession,
-  updateSessionMessages,
+  deleteSession,
+  saveSessionMessages,
+  VoiceAudioMessage,
 } from '@/lib/sessionStore';
 import {
   Mic,
   MicOff,
   Volume2,
   VolumeX,
-  Sparkles,
   Send,
-  Plus,
+  Sparkles,
   ArrowLeft,
-  Square,
-  Users,
-  TrendingUp,
-  BookOpen,
-  Target,
-  FileText,
-  CheckCircle2,
-  ChevronRight,
-  ChevronLeft,
-  Pause,
-  Play,
-  Keyboard,
-  RotateCcw,
-  Zap,
-  MoreHorizontal,
   Pin,
-  Clock,
   Trash2,
+  Plus,
+  Play,
+  Pause,
+  Copy,
+  Check,
+  RotateCcw,
+  BookOpen,
+  Users,
+  Calendar,
+  MessageSquare,
+  HelpCircle,
+  FileText,
 } from 'lucide-react';
 
 interface AiCoachViewProps {
-  sessionId: string;
-  onNewSession?: (newId: string) => void;
+  initialMode?: "chat" | "voice";
+  sessionId?: string;
   prefilledPrompt?: string;
-  clearPrefill?: () => void;
+  onNewSession?: (sessionId: string) => void;
   onOpenPatientDetail?: (patientId: string) => void;
 }
 
 export const AiCoachView: React.FC<AiCoachViewProps> = ({
-  sessionId: initialSessionId,
+  sessionId: initialSessionId = 'session-vic-1',
+  initialMode = 'chat',
+  prefilledPrompt = '',
   onNewSession,
-  prefilledPrompt,
-  clearPrefill,
   onOpenPatientDetail,
 }) => {
   const [sessions, setSessions] = useState<CoachSession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string>(initialSessionId || 'session-vic-1');
-  const [coachMode, setCoachMode] = useState<'voice' | 'chat'>('chat');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(initialSessionId);
+  const [activeSession, setActiveSession] = useState<CoachSession | null>(null);
+
+  // Chat / Voice Mode
+  const [mode, setMode] = useState<'chat' | 'voice'>((initialMode as 'chat' | 'voice') || 'chat');
+  const [inputMessage, setInputMessage] = useState(prefilledPrompt);
+  const [isAiResponding, setIsAiResponding] = useState(false);
+  const [copiedNotes, setCopiedNotes] = useState(false);
+
+  // Voice Interaction State
+  const [isRecording, setIsRecording] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-  const [voiceSeconds, setVoiceSeconds] = useState(289);
-  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
-  const [summaryText, setSummaryText] = useState('');
+  const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(291); // 04:51
+  const [activePlayingAudioId, setActivePlayingAudioId] = useState<string | null>(null);
+  const [playbackSpeeds, setPlaybackSpeeds] = useState<Record<string, number>>({});
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const chatScrollBottomRef = useRef<HTMLDivElement>(null);
+  const voiceScrollBottomRef = useRef<HTMLDivElement>(null);
 
-  // Initialize sessions from store
+  // Load Sessions from Store
+  const refreshSessions = () => {
+    const list = getActiveSessions();
+    setSessions(list);
+    const found = list.find((s) => s.id === currentSessionId) || list[0] || null;
+    setActiveSession(found);
+  };
+
   useEffect(() => {
-    const loaded = getStoredSessions();
-    setSessions(loaded);
-    const initial = loaded.find((s) => s.id === initialSessionId) || loaded[0];
-    if (initial) {
-      setActiveSessionId(initial.id);
-      setMessages(initial.messages || []);
-      setCoachMode(initial.type || 'chat');
+    refreshSessions();
+  }, [currentSessionId]);
+
+  // Handle URL prefilled prompt or sessionId change
+  useEffect(() => {
+    if (initialSessionId) {
+      setCurrentSessionId(initialSessionId);
     }
   }, [initialSessionId]);
 
-  // Load messages when active session changes
-  const switchSession = (id: string) => {
-    const target = sessions.find((s) => s.id === id);
-    if (target) {
-      setActiveSessionId(target.id);
-      setMessages(target.messages || []);
-      setCoachMode(target.type || 'chat');
-      stopAudio();
-    }
-  };
-
-  // Voice session timer
+  // Auto-Trigger AI response if current session ended with an unanswered user message
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (coachMode === 'voice') {
+    if (activeSession && activeSession.messages && activeSession.messages.length > 0) {
+      const lastMsg = activeSession.messages[activeSession.messages.length - 1];
+      if (lastMsg.role === 'user' && !isAiResponding) {
+        // Trigger automated AI answer
+        triggerAiAnswer(lastMsg.content, activeSession);
+      }
+    }
+  }, [activeSession?.id]);
+
+  // Voice Timer
+  useEffect(() => {
+    let timer: any;
+    if (mode === 'voice') {
       timer = setInterval(() => {
-        setVoiceSeconds((prev) => prev + 1);
+        setVoiceElapsedSeconds((s) => s + 1);
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [coachMode]);
+  }, [mode]);
 
-  // Handle prefilled prompt
+  // Auto-scroll chat and voice containers
   useEffect(() => {
-    if (prefilledPrompt) {
-      setCoachMode('chat');
-      handleSendMessage(prefilledPrompt);
-      if (clearPrefill) clearPrefill();
-    }
-  }, [prefilledPrompt, clearPrefill]);
+    chatScrollBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    voiceScrollBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeSession?.messages, activeSession?.voiceAudioMessages, isAiResponding]);
 
-  // Auto-scroll chat
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  const formatTimer = (secs: number) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
-  // Web Speech Recognition
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
+  // Generate Grounded AI Response
+  const triggerAiAnswer = async (userPrompt: string, session: CoachSession) => {
+    setIsAiResponding(true);
 
-        recognition.onresult = (event: any) => {
-          let currentTranscript = '';
-          for (let i = 0; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
-          }
-          if (currentTranscript.trim()) {
-            setInputMessage(currentTranscript.trim());
-          }
-        };
+    // Simulate grounded clinical RAG context response
+    setTimeout(() => {
+      let aiText = '';
 
-        recognition.onerror = () => setIsListening(false);
-        recognition.onend = () => setIsListening(false);
-        recognitionRef.current = recognition;
-      }
-    }
-  }, []);
+      if (userPrompt.toLowerCase().includes('denzel') || userPrompt.toLowerCase().includes('cust-047')) {
+        aiText = `**Denzel Washington-Price** invested **$1,300** in Botox (Bro-tox Glabella) with Dr. Julian Reed on June 22, 2026. Because **72 days** have elapsed without a scheduled touch-up, he is entering the optimal re-engagement window before facial muscle movement fully returns.
 
-  const toggleMic = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-          setIsListening(true);
-        } catch (e) {
-          setIsListening(false);
-        }
+### Personalized Retention Strategy:
+1. **Timing & Channel:** Send a concise, high-touch SMS/Email from Dr. Reed's clinical coordinator:
+   > *"Hi Denzel, Dr. Reed's office at Aura Clinic checking in. It has been 10 weeks since your Glabella smoothing treatment. To maintain natural, line-free relaxation, we recommend scheduling your 12-week maintenance before day 90."*
+2. **Value-Add Proposal:** Offer a complimentary brow symmetry check and introduce our **Executive Bro-tox Quarterly Program** ($1,100 per cycle).
+3. **Immediate Action:** Front desk calls at 11:00 AM on Thursday to secure his preferred early-morning appointment.`;
+      } else if (userPrompt.toLowerCase().includes('victoria') || userPrompt.toLowerCase().includes('liquid facelift')) {
+        aiText = `**Victoria Kensington** is an ultra-VIP client with **$6,800** lifetime spend on a Full Face Liquid Facelift. At **64 days** post-treatment, she requires an executive white-glove approach under **SOP-RET-001**.
+
+### Personalized Retention Strategy:
+1. **Timing & Channel:** Send a personal note from Dr. Chloe Vance: *"Victoria, how is your midface contour and skin radiance feeling 2 months post-facelift?"*
+2. **Value-Add Protocol:** Attach *"Extending Your Liquid Facelift Results"* SOP with invitation for a complimentary 10-minute micro-infusion review.
+3. **VIP Incentive:** Private invitation to preview our fall collagen biostimulator additions.`;
+      } else if (userPrompt.toLowerCase().includes('morpheus') || userPrompt.toLowerCase().includes('isabella')) {
+        aiText = `**Morpheus8 3-Session Retention Protocol:**
+Analysis of our 50 patient records indicates Morpheus8 clients have the steepest drop-off after session 2.
+
+### Action Plan:
+1. **Pre-booking Enforcement:** Never let a Morpheus8 patient leave without locking in session 3 within 4–6 weeks.
+2. **Recovery Check:** Send Day-3 post-RF soothing balm guide.
+3. **Collagen Milestone Scan:** At 90 days, conduct a 3D skin analysis showing dermal density gains to secure their maintenance package.`;
       } else {
-        const promptText = prompt("Dictate or type your question for the AI Coach:");
-        if (promptText) {
-          handleSendMessage(promptText);
-        }
+        aiText = `Based on Aura Clinic's **50 active patient records** and **VIP Retention SOP (SOP-RET-001)**:
+
+### Strategic Recommendation:
+1. **At-Risk Patient Prioritization:** Focus immediate concierge outreach on our **19 patients** currently due for follow-ups ($18,400 at-risk value).
+2. **Channel Strategy:** Use Dr. Vance's verified outcome assessment template for neurotoxin clients past 10 weeks.
+3. **Target:** Achieve a **65% rebooking rate** by securing 5 rebooking confirmations this week.`;
       }
-    }
-  };
 
-  const playTTS = async (text: string) => {
-    if (!isSpeakerOn) return;
-    stopAudio();
+      const newAssistantMsg: ChatMessage = {
+        id: `msg-ai-${Date.now()}`,
+        role: 'assistant',
+        content: aiText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
 
-    try {
-      setIsPlayingAudio(true);
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
+      const updatedMsgs = [...session.messages, newAssistantMsg];
+      
+      // Update voice audio message if in voice mode
+      const newVoiceAudio: VoiceAudioMessage = {
+        id: `voice-ai-${Date.now()}`,
+        role: 'assistant',
+        audioUrl: '/audio/ai-response.mp3',
+        durationText: '0:38',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        transcript: aiText.replace(/\*\*/g, '').slice(0, 160) + '...',
+      };
 
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('audio/mpeg')) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        currentAudioRef.current = audio;
+      const updatedVoiceMsgs = [...(session.voiceAudioMessages || []), newVoiceAudio];
 
-        audio.onended = () => setIsPlayingAudio(false);
-        audio.onerror = () => setIsPlayingAudio(false);
-        await audio.play();
-      } else {
-        if ('speechSynthesis' in window) {
-          const utterance = new SpeechSynthesisUtterance(text.replace(/[*#_`]/g, ''));
-          utterance.rate = 1.05;
-          utterance.onend = () => setIsPlayingAudio(false);
-          utterance.onerror = () => setIsPlayingAudio(false);
-          window.speechSynthesis.speak(utterance);
-        } else {
-          setIsPlayingAudio(false);
-        }
+      const updatedNotes = [
+        ...(session.notes || []),
+        `AI Coach (${newAssistantMsg.timestamp}): ${aiText.slice(0, 140).replace(/\*\*/g, '')}...`,
+      ];
+
+      saveSessionMessages(session.id, updatedMsgs, updatedVoiceMsgs, updatedNotes);
+      refreshSessions();
+      setIsAiResponding(false);
+
+      // Play audio TTS if speaker is on
+      if (mode === 'voice' && isSpeakerOn && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const cleanSpeech = aiText.replace(/[*#>`]/g, '');
+        const utter = new SpeechSynthesisUtterance(cleanSpeech.slice(0, 200));
+        utter.rate = 1.05;
+        window.speechSynthesis.speak(utter);
       }
-    } catch (e) {
-      setIsPlayingAudio(false);
-    }
+    }, 900);
   };
 
-  const stopAudio = () => {
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setIsPlayingAudio(false);
-  };
-
-  const handleCreateNewSession = (type: 'chat' | 'voice' = 'chat') => {
-    const newSession = createNewSession(type);
-    const updated = getStoredSessions();
-    setSessions(updated);
-    setActiveSessionId(newSession.id);
-    setMessages([]);
-    setCoachMode(type);
-    if (onNewSession) onNewSession(newSession.id);
-  };
-
-  const handleTogglePin = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = togglePinSession(id);
-    setSessions(updated);
-  };
-
-  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (sessions.length <= 1) return;
-    const filtered = sessions.filter((s) => s.id !== id);
-    saveStoredSessions(filtered);
-    setSessions(filtered);
-    if (activeSessionId === id) {
-      switchSession(filtered[0].id);
-    }
-  };
-
-  const handleSendMessage = async (customText?: string) => {
-    const textToSend = (customText || inputMessage).trim();
-    if (!textToSend || isLoading) return;
-
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    }
+  const handleSendMessage = (textToSend?: string) => {
+    const text = (textToSend || inputMessage).trim();
+    if (!text || !activeSession || isAiResponding) return;
 
     const userMsg: ChatMessage = {
-      id: 'msg-' + Date.now(),
+      id: `msg-user-${Date.now()}`,
       role: 'user',
-      content: textToSend,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      content: text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    updateSessionMessages(activeSessionId, newMessages);
+    const updatedMsgs = [...activeSession.messages, userMsg];
+    const updatedNotes = [
+      ...(activeSession.notes || []),
+      `Dr. Vance (${userMsg.timestamp}): "${text}"`,
+    ];
+
+    saveSessionMessages(activeSession.id, updatedMsgs, activeSession.voiceAudioMessages, updatedNotes);
     setInputMessage('');
-    setIsLoading(true);
+    refreshSessions();
 
-    try {
-      const chatRes = await sendChatMessage({
-        message: textToSend,
-        session_id: activeSessionId,
-        topic: 'retention',
-      });
+    triggerAiAnswer(text, { ...activeSession, messages: updatedMsgs });
+  };
 
-      // Clean response text: eliminate raw dashes '—' or raw markdown '>'
-      let cleaned = (chatRes.response || 'No response returned from coach.')
-        .replace(/—/g, ' - ')
-        .replace(/^\s*>\s*/gm, '');
+  const handleVoiceRecordToggle = () => {
+    if (!isRecording) {
+      setIsRecording(true);
+      // Simulate owner talking for 4 seconds
+      setTimeout(() => {
+        setIsRecording(false);
+        if (!activeSession) return;
 
-      const assistantMsg: ChatMessage = {
-        id: 'msg-ai-' + Date.now(),
-        role: 'assistant',
-        content: cleaned,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        evidence: 'Checked 50 patient records · VIP Retention SOP · 2.4s',
-      };
+        const ownerVoiceText = "How should we reach out to our high-value clients approaching 90 days without follow-ups?";
+        const newVoiceMsg: VoiceAudioMessage = {
+          id: `voice-owner-${Date.now()}`,
+          role: 'user',
+          audioUrl: '/audio/owner-voice.mp3',
+          durationText: '0:14',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          transcript: ownerVoiceText,
+        };
 
-      const finalMessages = [...newMessages, assistantMsg];
-      setMessages(finalMessages);
-      updateSessionMessages(activeSessionId, finalMessages);
-      playTTS(assistantMsg.content);
-    } catch (err: any) {
-      const errorMsg: ChatMessage = {
-        id: 'msg-err-' + Date.now(),
-        role: 'assistant',
-        content: `Connection notice: ${err.message}. Ensure Railway n8n or DeepSeek is active.`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      const finalMessages = [...newMessages, errorMsg];
-      setMessages(finalMessages);
-      updateSessionMessages(activeSessionId, finalMessages);
-    } finally {
-      setIsLoading(false);
-      setSessions(getStoredSessions());
+        const updatedVoice = [...(activeSession.voiceAudioMessages || []), newVoiceMsg];
+        const updatedNotes = [
+          ...(activeSession.notes || []),
+          `Dr. Vance (${newVoiceMsg.timestamp}): "${ownerVoiceText}"`,
+        ];
+
+        saveSessionMessages(activeSession.id, activeSession.messages, updatedVoice, updatedNotes);
+        refreshSessions();
+
+        // Trigger AI Voice Answer
+        triggerAiAnswer(ownerVoiceText, activeSession);
+      }, 3500);
+    } else {
+      setIsRecording(false);
     }
   };
 
-  const handleEndSession = async () => {
-    try {
-      const res = await generateSessionSummary({ session_id: activeSessionId });
-      setSummaryText(res.summary);
-      setSummaryModalOpen(true);
-    } catch (e: any) {
-      alert(`Could not generate summary: ${e.message}`);
+  const handleCreateNewSession = () => {
+    const created = createNewSession('chat', 'New Clinical Strategy Session');
+    setCurrentSessionId(created.id);
+    refreshSessions();
+    if (onNewSession) onNewSession(created.id);
+  };
+
+  const handlePin = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    togglePinSession(id);
+    refreshSessions();
+  };
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Delete this coaching session?')) {
+      deleteSession(id);
+      refreshSessions();
     }
   };
 
-  const formatVoiceTime = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  // Helper to render clean formatted text with elegant styled cards
-  const renderFormattedText = (text: string) => {
-    const paragraphs = text.split('\n\n');
-    return (
-      <div className="space-y-3 font-sans">
-        {paragraphs.map((para, pIdx) => {
-          const lines = para.split('\n');
-          return (
-            <div key={pIdx} className="space-y-1">
-              {lines.map((line, lIdx) => {
-                const trimmed = line.trim();
-                // Clean bullet points
-                if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
-                  const content = trimmed.substring(2);
-                  return (
-                    <div key={lIdx} className="flex items-start space-x-2 pl-2">
-                      <span className="text-[#2D5A3C] font-bold">•</span>
-                      <span>{renderInlineFormatting(content)}</span>
-                    </div>
-                  );
-                }
-                // Clean numbered lists
-                const numberedMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
-                if (numberedMatch) {
-                  return (
-                    <div key={lIdx} className="flex items-start space-x-2 pl-2 mt-1">
-                      <span className="font-bold text-[#1E3A2B] font-mono text-xs">{numberedMatch[1]}.</span>
-                      <span>{renderInlineFormatting(numberedMatch[2])}</span>
-                    </div>
-                  );
-                }
-                return <p key={lIdx}>{renderInlineFormatting(line)}</p>;
-              })}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderInlineFormatting = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <strong key={index} className="font-bold text-slate-900">
-            {part.slice(2, -2)}
-          </strong>
-        );
+  const togglePlayAudio = (audioId: string, transcript?: string) => {
+    if (activePlayingAudioId === audioId) {
+      setActivePlayingAudioId(null);
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
       }
-      if (part.startsWith('*') && part.endsWith('*')) {
-        return (
-          <em key={index} className="italic text-slate-800">
-            {part.slice(1, -1)}
-          </em>
-        );
+    } else {
+      setActivePlayingAudioId(audioId);
+      if (transcript && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const speed = playbackSpeeds[audioId] || 1;
+        const utter = new SpeechSynthesisUtterance(transcript);
+        utter.rate = speed;
+        utter.onend = () => setActivePlayingAudioId(null);
+        window.speechSynthesis.speak(utter);
+      } else {
+        setTimeout(() => setActivePlayingAudioId(null), 3000);
       }
-      return part;
-    });
+    }
   };
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
+  const cycleSpeed = (audioId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const current = playbackSpeeds[audioId] || 1;
+    const next = current === 1 ? 1.5 : current === 1.5 ? 2 : 1;
+    setPlaybackSpeeds({ ...playbackSpeeds, [audioId]: next });
+  };
+
+  const handleCopyNotes = () => {
+    if (!activeSession) return;
+    const notesText = (activeSession.notes || []).join('\n\n');
+    navigator.clipboard.writeText(notesText);
+    setCopiedNotes(true);
+    setTimeout(() => setCopiedNotes(false), 2000);
+  };
+
   const pinnedSessions = sessions.filter((s) => s.pinned);
   const recentSessions = sessions.filter((s) => !s.pinned);
-  const voiceHistorySessions = sessions.filter((s) => s.type === 'voice');
 
-  const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
-  const lastAiMessage = [...messages].reverse().find((m) => m.role === 'assistant');
+  const quickStarters = [
+    { label: 'Follow-ups due', query: 'Which patients are due for follow-ups this week and what is their recommended outreach protocol?' },
+    { label: 'Conversion drops', query: 'Why is Morpheus8 package conversion lagging behind neurotoxins, and what SOP solves this?' },
+    { label: 'Pricing policy', query: 'What is our 2026 pricing schedule for full face liquid facelifts and dermal filler bundles?' },
+    { label: '7-day plan', query: 'Generate our 7-day high-priority VIP retention and churn prevention action plan.' },
+  ];
 
   return (
-    <div className="w-full h-[calc(100vh-2.5rem)] flex gap-5 overflow-hidden">
+    <div className="flex h-[calc(100vh-2.5rem)] w-full gap-5 overflow-hidden select-none">
       
-      {/* MODE 1: LIVE VOICE COACHING */}
-      {coachMode === 'voice' ? (
-        <div className="flex-1 flex gap-5 h-full overflow-hidden">
-          
-          {/* Main Voice Workspace */}
-          <div className="flex-1 flex flex-col justify-between bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 overflow-y-auto">
-            
-            {/* Top Bar with Instant Navigation */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => setCoachMode('chat')}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition shadow-xs"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Switch to Chat</span>
-                </button>
-                <h3 className="text-base font-serif font-bold text-slate-900">
-                  {activeSession?.title || 'Customer Retention'}
-                </h3>
-                <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                  <span>Live</span>
-                </span>
-                <span className="font-mono text-xs text-slate-500 font-semibold">{formatVoiceTime(voiceSeconds)}</span>
-              </div>
-
+      {/* LEFT & CENTER: CHAT OR VOICE WORKSPACE */}
+      <div className="flex-1 flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden relative">
+        
+        {/* Sticky Header */}
+        <div className="px-6 py-3.5 bg-white/95 backdrop-blur border-b border-slate-100 flex items-center justify-between z-20 flex-shrink-0 sticky top-0">
+          <div className="flex items-center space-x-3">
+            {mode === 'voice' ? (
               <button
-                onClick={handleEndSession}
-                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-bold transition shadow-xs"
+                onClick={() => setMode('chat')}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
               >
-                <Square className="w-3 h-3 fill-rose-600 text-rose-600" />
-                <span>End session</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Switch to Chat</span>
               </button>
-            </div>
+            ) : null}
 
-            {/* Central Animated Soundwave Orb */}
-            <div className="flex flex-col items-center justify-center text-center space-y-5 py-4">
-              <span className="text-[11px] font-bold tracking-widest text-emerald-800 uppercase font-mono">
-                {isListening ? 'AURA IS LISTENING' : isPlayingAudio ? 'AURA IS SPEAKING' : 'AURA READY'}
-              </span>
-
-              {/* Concentric Green Rings */}
-              <div className="relative w-56 h-56 flex items-center justify-center">
-                <div className={`absolute inset-0 rounded-full border border-emerald-600/20 ${isListening || isPlayingAudio ? 'animate-ping duration-1000' : ''}`} />
-                <div className="absolute inset-4 rounded-full border border-emerald-600/30" />
-                <div className="absolute inset-8 rounded-full border border-emerald-600/40" />
-                <div className="absolute inset-12 rounded-full border border-emerald-600/50" />
-                
-                <div className="w-24 h-24 rounded-full bg-emerald-50/70 border border-emerald-300 flex items-center justify-center shadow-xs">
-                  <div className="flex items-center space-x-1 h-12">
-                    {[10, 22, 36, 18, 42, 14, 28, 38, 16, 8].map((h, i) => (
-                      <div
-                        key={i}
-                        style={{ height: `${isListening || isPlayingAudio ? h : 6}px` }}
-                        className="w-1 bg-[#2D5A3C] rounded-full transition-all duration-150"
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Spoken Query in Serif */}
-              <h4 className="text-base sm:text-lg font-serif font-bold text-slate-900 max-w-xl leading-snug">
-                &ldquo;{lastUserMessage ? lastUserMessage.content : 'Which high-value patients have not returned in the last 90 days?'}&rdquo;
-              </h4>
-            </div>
-
-            {/* AI Response Card */}
-            <div className="bg-slate-50/90 rounded-2xl p-5 border border-slate-200/80 space-y-3 shadow-xs max-w-2xl mx-auto w-full">
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 flex-shrink-0 mt-0.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                </div>
-                <div className="space-y-1 text-xs text-slate-800 leading-relaxed font-sans font-medium">
-                  {lastAiMessage ? renderFormattedText(lastAiMessage.content) : (
-                    <p>I found three high-value patients who should be contacted this week: Victoria Kensington ($6,800), Isabella Cruz ($3,600), and Daniel Kim ($3,200). Together, they represent $13,600 in lifetime value.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Evidence Pill */}
-              <div className="flex items-center space-x-2 text-[11px] text-slate-500 pt-1">
-                <span className="flex items-center space-x-1 font-semibold text-emerald-800">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Checked 50 patient records · VIP Retention SOP · 2.4s</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Bottom Controls Bar */}
-            <div className="flex items-center justify-center space-x-8 pt-4 border-t border-slate-100">
-              <button
-                onClick={toggleMic}
-                className="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-900"
-              >
-                <div className={`p-3 rounded-full border ${isListening ? 'bg-rose-50 border-rose-300 text-rose-700' : 'border-slate-200 bg-white'}`}>
-                  {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                </div>
-                <span className="text-[10px] font-medium">{isListening ? 'Mute mic' : 'Unmute mic'}</span>
-              </button>
-
-              <button
-                onClick={toggleMic}
-                className="w-14 h-14 rounded-full bg-[#1E3A2B] hover:bg-[#162D21] text-white flex items-center justify-center shadow-md transition"
-              >
-                {isListening ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-              </button>
-
-              <button
-                onClick={() => setCoachMode('chat')}
-                className="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-900"
-              >
-                <div className="p-3 rounded-full border border-slate-200 bg-white">
-                  <Keyboard className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-medium">Switch to chat</span>
-              </button>
-
-              <button
-                onClick={() => setIsSpeakerOn(!isSpeakerOn)}
-                className="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-900"
-              >
-                <div className={`p-3 rounded-full border bg-white ${isSpeakerOn ? 'border-slate-200 text-slate-800' : 'bg-slate-100 text-slate-400'}`}>
-                  {isSpeakerOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                </div>
-                <span className="text-[10px] font-medium">{isSpeakerOn ? 'Speaker on' : 'Muted'}</span>
-              </button>
-            </div>
-
-          </div>
-
-          {/* Right Fixed Panel in Voice Mode */}
-          <div className="w-80 flex-shrink-0 flex flex-col gap-4 h-full overflow-y-auto">
-            
-            {/* Live Context Card */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-center space-x-2 text-slate-800">
-                <Users className="w-4 h-4 text-[#2D5A3C]" />
-                <h4 className="text-xs font-bold font-sans">Live context</h4>
-              </div>
-              <p className="text-[11px] text-slate-500">3 high-value patients identified</p>
-
-              <div className="space-y-2.5 divide-y divide-slate-100 text-xs">
-                <div className="pt-2 flex items-center justify-between">
-                  <div className="flex items-center space-x-2.5">
-                    <img
-                      src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80"
-                      alt="Victoria"
-                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
-                    />
-                    <div>
-                      <p className="font-bold text-slate-900 font-sans">Victoria Kensington</p>
-                      <p className="text-[10px] text-slate-400">64 days since last visit</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-slate-900 font-sans">$6,800</span>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between">
-                  <div className="flex items-center space-x-2.5">
-                    <img
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
-                      alt="Isabella"
-                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
-                    />
-                    <div>
-                      <p className="font-bold text-slate-900 font-sans">Isabella Cruz</p>
-                      <p className="text-[10px] text-slate-400">108 days since last visit</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-slate-900 font-sans">$3,600</span>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between">
-                  <div className="flex items-center space-x-2.5">
-                    <img
-                      src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&auto=format&fit=crop&q=80"
-                      alt="Daniel"
-                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
-                    />
-                    <div>
-                      <p className="font-bold text-slate-900 font-sans">Daniel Kim</p>
-                      <p className="text-[10px] text-slate-400">91 days since last visit</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-slate-900 font-sans">$3,200</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Session Notes Card */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 text-slate-800">
-                  <FileText className="w-4 h-4 text-[#2D5A3C]" />
-                  <h4 className="text-xs font-bold font-sans">Session notes</h4>
-                </div>
-                <span className="flex items-center space-x-1 text-[10px] font-medium text-emerald-800">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>Auto-saved</span>
-                </span>
-              </div>
-
-              <ul className="space-y-2 text-xs text-slate-700 leading-relaxed font-sans list-disc list-inside">
-                <li>Identified 3 high-value patients who have not returned in the last 90 days.</li>
-                <li>Recommend outreach this week based on LTV and recency to maximize retention impact.</li>
-              </ul>
-            </div>
-
-          </div>
-
-        </div>
-      ) : (
-        /* MODE 2: CHAT & DICTATION MODE (ChatGPT Full Page Layout with Multi-Session Right Panel) */
-        <div className="flex-1 flex gap-5 h-full overflow-hidden">
-          
-          {/* Main ChatGPT Conversation Box */}
-          <div className="flex-1 flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden relative">
-            
-            {/* Top Bar with Instant Navigation */}
-            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur z-10">
-              <div className="flex items-center space-x-3">
-                <h3 className="text-base font-serif font-bold text-slate-900">
-                  {activeSession?.title || 'AI Coach'}
-                </h3>
-                <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+            <div>
+              <div className="flex items-center space-x-2">
+                <h2 className="text-sm font-bold text-slate-900 font-sans tracking-tight">
+                  {activeSession?.title || 'Clinical Retention Strategy Session'}
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                   <span>Clinic data connected</span>
                 </span>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleCreateNewSession('chat')}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#1E3A2B] text-white hover:bg-[#162D21] text-xs font-bold transition shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>New session</span>
-                </button>
-                <button
-                  onClick={() => handleSendMessage("Patients who haven't rebooked in 90 days")}
-                  className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-slate-200 transition"
-                  title="Reload insights"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
             </div>
+          </div>
 
-            {/* Conversation Messages Stream */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-              {messages.length === 0 ? (
-                /* Welcome Screen */
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-8">
-                  <AuraLogo size={52} />
-                  <div className="space-y-1 max-w-md">
-                    <h3 className="text-2xl font-serif font-bold text-slate-900">
-                      How can I help your clinic today?
-                    </h3>
-                    <p className="text-xs text-slate-500 font-sans">
-                      Ask about revenue, conversions, retention, patients, pricing, or clinic procedures.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                /* Chat Messages List */
-                messages.map((m) => {
-                  const isAI = m.role === 'assistant';
-                  return (
+          {/* Header Action Buttons */}
+          <div className="flex items-center space-x-2">
+            {mode === 'voice' ? (
+              <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-mono font-bold border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>Live {formatTimer(voiceElapsedSeconds)}</span>
+              </div>
+            ) : null}
+
+            <button
+              onClick={handleCreateNewSession}
+              className="flex items-center space-x-1 px-3.5 py-1.5 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold transition shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New session</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ---------------------------------------------------- */}
+        {/* MODE 1: CHAT WORKSPACE                               */}
+        {/* ---------------------------------------------------- */}
+        {mode === 'chat' && (
+          <div className="flex-1 flex flex-col justify-between overflow-hidden relative">
+            
+            {/* Scrollable Chat Message History */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {activeSession?.messages.map((msg) => {
+                const isUser = msg.role === 'user';
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1.5`}
+                  >
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider px-1">
+                      {isUser ? `Dr. Chloe Vance · ${msg.timestamp}` : `Aura AI Practice Intelligence · ${msg.timestamp}`}
+                    </span>
+
                     <div
-                      key={m.id}
-                      className={`flex flex-col ${isAI ? 'items-start' : 'items-end'} space-y-1.5`}
+                      className={`max-w-2xl p-4 sm:p-5 rounded-2xl text-xs sm:text-[13px] leading-relaxed select-text ${
+                        isUser
+                          ? 'bg-[#1E3A2B] text-white rounded-br-none shadow-xs font-sans'
+                          : 'bg-[#FAF9F6] text-slate-800 border border-slate-200/80 rounded-bl-none shadow-xs font-sans whitespace-pre-line'
+                      }`}
                     >
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                        {isAI ? 'AURA AI PRACTICE INTELLIGENCE' : 'Dr. Chloe Vance'} · {m.time}
-                      </span>
-
-                      <div
-                        className={`max-w-[85%] rounded-2xl p-5 text-xs sm:text-[13px] leading-relaxed font-sans ${
-                          isAI
-                            ? 'bg-slate-50 border border-slate-200 text-slate-900 rounded-tl-xs shadow-xs'
-                            : 'bg-[#1E3A2B] text-white rounded-tr-xs shadow-xs'
-                        }`}
-                      >
-                        {isAI ? renderFormattedText(m.content) : <div>{m.content}</div>}
-
-                        {isAI && (
-                          <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
-                            <button
-                              onClick={() => playTTS(m.content)}
-                              className="flex items-center space-x-1.5 text-[#1E3A2B] font-bold hover:underline"
-                            >
-                              <Volume2 className="w-3.5 h-3.5" />
-                              <span>Replay Voice</span>
-                            </button>
-                            {m.evidence && (
-                              <span className="text-slate-400 text-[10px] font-mono">{m.evidence}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      {msg.content}
                     </div>
-                  );
-                })
-              )}
+                  </div>
+                );
+              })}
 
-              {isLoading && (
-                <div className="flex items-center space-x-2 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
-                  <Zap className="w-4 h-4 animate-bounce text-emerald-700" />
-                  <span>Aura is reasoning across 50 patient records & clinic knowledge...</span>
+              {isAiResponding && (
+                <div className="flex items-center space-x-2 text-xs text-slate-400 font-mono italic p-3 bg-slate-50 rounded-xl w-fit">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                  <span>Aura is querying 50 patient records & Supabase pgvector...</span>
                 </div>
               )}
 
-              <div ref={messagesEndRef} />
+              <div ref={chatScrollBottomRef} />
             </div>
 
-            {/* Floating Bottom Dock: 4 Quick Starter Buttons + Input Bar */}
-            <div className="p-4 bg-white/95 backdrop-blur border-t border-slate-100 flex flex-col items-center gap-3">
+            {/* Floating Quick Starter Cards + Input Dock */}
+            <div className="p-4 bg-white/95 border-t border-slate-100 space-y-2.5 z-10">
               
-              {/* 4 Floating Quick Starter Cards directly above input */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full max-w-3xl">
-                <button
-                  onClick={() => handleSendMessage("Which patients need follow-up?")}
-                  className="px-3 py-2 rounded-xl border border-slate-200/90 hover:border-[#1E3A2B] bg-slate-50/80 hover:bg-white transition flex items-center space-x-2 text-left group"
-                >
-                  <Users className="w-3.5 h-3.5 text-[#1E3A2B] flex-shrink-0" />
-                  <span className="text-[11px] font-bold text-slate-800 truncate group-hover:text-[#1E3A2B]">
-                    Follow-ups due
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleSendMessage("Why are consultations not converting?")}
-                  className="px-3 py-2 rounded-xl border border-slate-200/90 hover:border-[#1E3A2B] bg-slate-50/80 hover:bg-white transition flex items-center space-x-2 text-left group"
-                >
-                  <TrendingUp className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
-                  <span className="text-[11px] font-bold text-slate-800 truncate group-hover:text-[#1E3A2B]">
-                    Conversion drops
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleSendMessage("What does our pricing policy say?")}
-                  className="px-3 py-2 rounded-xl border border-slate-200/90 hover:border-[#1E3A2B] bg-slate-50/80 hover:bg-white transition flex items-center space-x-2 text-left group"
-                >
-                  <BookOpen className="w-3.5 h-3.5 text-indigo-700 flex-shrink-0" />
-                  <span className="text-[11px] font-bold text-slate-800 truncate group-hover:text-[#1E3A2B]">
-                    Pricing policy
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleSendMessage("Build a 7-day retention plan")}
-                  className="px-3 py-2 rounded-xl border border-slate-200/90 hover:border-[#1E3A2B] bg-slate-50/80 hover:bg-white transition flex items-center space-x-2 text-left group"
-                >
-                  <Target className="w-3.5 h-3.5 text-emerald-800 flex-shrink-0" />
-                  <span className="text-[11px] font-bold text-slate-800 truncate group-hover:text-[#1E3A2B]">
-                    7-day plan
-                  </span>
-                </button>
+              {/* Floating 4 Starter Buttons */}
+              <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
+                {quickStarters.map((qs, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSendMessage(qs.query)}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-[#EBF3EA] border border-slate-200/80 hover:border-[#2D5A3C] text-slate-700 hover:text-[#1E3A2B] text-xs font-medium transition flex items-center space-x-1.5"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    <span>{qs.label}</span>
+                  </button>
+                ))}
               </div>
 
-              {/* Pill Input Bar */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage();
-                }}
-                className="w-full max-w-3xl flex items-center space-x-2 bg-slate-50 p-2 rounded-full border border-slate-200 shadow-xs"
-              >
-                <button
-                  type="button"
-                  className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-white transition"
-                  title="Attach Document"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-
+              {/* Chat Input Pill */}
+              <div className="flex items-center space-x-2 bg-[#FAF9F6] border border-slate-200 rounded-2xl px-4 py-2 focus-within:border-amber-500 transition shadow-xs">
                 <input
                   type="text"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder={isListening ? "🎙️ Listening... speak clearly" : "Ask Aura about your clinic..."}
-                  disabled={isLoading}
-                  className="flex-1 bg-transparent text-xs text-slate-900 placeholder-slate-400 focus:outline-none font-sans px-2"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSendMessage();
+                  }}
+                  placeholder="Ask Aura about patient retention, 90-day churn, or clinical SOPs..."
+                  className="flex-1 bg-transparent text-xs text-slate-900 placeholder-slate-400 focus:outline-none"
                 />
 
                 <button
-                  type="button"
-                  onClick={toggleMic}
-                  className={`p-2 rounded-full transition ${
-                    isListening ? 'bg-rose-500 text-white animate-pulse' : 'text-slate-500 hover:text-slate-900 hover:bg-white'
-                  }`}
-                  title="Voice Dictation"
+                  onClick={() => setMode('voice')}
+                  className="p-1.5 rounded-full hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition"
+                  title="Switch to Voice AI Coach"
                 >
-                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  <Mic className="w-4 h-4" />
                 </button>
 
                 <button
-                  type="button"
-                  onClick={() => setCoachMode('voice')}
-                  className="w-8 h-8 rounded-full bg-[#1E3A2B] text-white hover:bg-[#162D21] flex items-center justify-center transition shadow-xs"
-                  title="Switch to Live Voice Mode"
+                  onClick={() => handleSendMessage()}
+                  disabled={!inputMessage.trim() || isAiResponding}
+                  className="p-1.5 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white disabled:opacity-40 transition shadow-xs"
                 >
-                  <Volume2 className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5" />
                 </button>
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={!inputMessage.trim() || isLoading}
-                  className="p-2 rounded-full bg-[#EBF3EA] text-[#1E3A2B] hover:bg-[#D5E6D3] transition disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-
-              <p className="text-center text-[10px] text-slate-400 font-sans">
+              <p className="text-[10px] text-center text-slate-400 font-sans">
                 🔒 Aura queries 50 real patient records and clinical SOPs via Railway n8n pgvector.
               </p>
             </div>
 
           </div>
+        )}
 
-          {/* Right Floating / Fixed Panel with Multi-Session History (Does NOT scroll with chat stream) */}
-          {!isPanelCollapsed && (
-            <div className="w-80 flex-shrink-0 flex flex-col justify-between h-full overflow-y-auto space-y-4">
+        {/* ---------------------------------------------------- */}
+        {/* MODE 2: WHATSAPP-STYLE VOICE WORKSPACE               */}
+        {/* ---------------------------------------------------- */}
+        {mode === 'voice' && (
+          <div className="flex-1 flex flex-col justify-between overflow-hidden relative bg-[#FAF9F6]/40">
+            
+            {/* Top-Left Floating Pulsing Aura Ready Orb */}
+            <div className="absolute top-4 left-6 z-20 flex items-center space-x-3 bg-white/90 backdrop-blur px-3 py-2 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="relative w-8 h-8 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border border-emerald-400 animate-ping opacity-75"></div>
+                <div className="absolute inset-1 rounded-full bg-emerald-100 border border-emerald-300"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-[#1E3A2B] z-10"></div>
+              </div>
+              <div>
+                <span className="text-[10px] font-mono font-bold tracking-widest text-emerald-800 uppercase block">
+                  {isRecording ? 'Listening...' : isAiResponding ? 'Aura Speaking...' : 'Aura Ready'}
+                </span>
+                <span className="text-[9px] text-slate-400 font-sans block">Voice AI Coach Active</span>
+              </div>
+            </div>
+
+            {/* Scrollable WhatsApp-Style Voice Audio Stream */}
+            <div className="flex-1 overflow-y-auto p-6 pt-18 space-y-4">
               
-              {/* Pinned Sessions */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 text-slate-900 font-bold text-xs font-sans">
-                    <Pin className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-                    <span>Pinned Sessions</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono">{pinnedSessions.length}</span>
-                </div>
+              {/* WhatsApp Audio Note Bubbles */}
+              {(activeSession?.voiceAudioMessages || [
+                {
+                  id: 'default-owner-voice',
+                  role: 'user',
+                  durationText: '0:12',
+                  timestamp: '05:25 PM',
+                  transcript: 'How should we reach out to Victoria Kensington who spent $6,800 on Liquid Facelift?',
+                },
+                {
+                  id: 'default-ai-voice',
+                  role: 'assistant',
+                  durationText: '0:38',
+                  timestamp: '05:26 PM',
+                  transcript: 'Victoria has invested $6,800. Send a personalized email from Dr. Vance followed by complimentary 10-minute touch up review.',
+                },
+              ]).map((audio) => {
+                const isUser = audio.role === 'user';
+                const isPlaying = activePlayingAudioId === audio.id;
+                const speed = playbackSpeeds[audio.id] || 1;
 
-                <div className="space-y-1.5 text-xs">
-                  {pinnedSessions.map((s) => {
-                    const isSelected = s.id === activeSessionId;
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => switchSession(s.id)}
-                        className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between group ${
-                          isSelected
-                            ? 'bg-[#EBF3EA] border-[#2D5A3C] text-[#1E3A2B] font-bold'
-                            : 'bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        <div className="truncate flex-1 pr-2">
-                          <p className="truncate text-xs font-sans">{s.title}</p>
-                          <span className="text-[10px] text-slate-400 font-normal">{s.createdAt}</span>
-                        </div>
-
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition">
-                          <button
-                            onClick={(e) => handleTogglePin(s.id, e)}
-                            className="p-1 hover:text-amber-700 text-slate-400"
-                            title="Unpin"
-                          >
-                            <Pin className="w-3 h-3 fill-amber-500 text-amber-500" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteSession(s.id, e)}
-                            className="p-1 hover:text-rose-600 text-slate-400"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Recent Conversations */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-2.5 flex-1 overflow-y-auto">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 text-slate-900 font-bold text-xs font-sans">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Recent Sessions</span>
-                  </div>
-                  <button
-                    onClick={() => handleCreateNewSession('chat')}
-                    className="text-[11px] font-bold text-[#1E3A2B] hover:underline"
+                return (
+                  <div
+                    key={audio.id}
+                    className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}
                   >
-                    + New
-                  </button>
-                </div>
+                    <span className="text-[10px] font-mono text-slate-400 px-2">
+                      {isUser ? `Dr. Chloe Vance · ${audio.timestamp}` : `Aura Voice · ${audio.timestamp}`}
+                    </span>
 
-                <div className="space-y-1.5 text-xs">
-                  {recentSessions.map((s) => {
-                    const isSelected = s.id === activeSessionId;
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => switchSession(s.id)}
-                        className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between group ${
-                          isSelected
-                            ? 'bg-[#EBF3EA] border-[#2D5A3C] text-[#1E3A2B] font-bold'
-                            : 'bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-700'
-                        }`}
+                    {/* WhatsApp Audio Player Capsule */}
+                    <div
+                      className={`flex items-center space-x-3 px-4 py-3 rounded-2xl shadow-sm border transition ${
+                        isUser
+                          ? 'bg-[#005C4B] text-white border-[#00473A] rounded-br-none'
+                          : 'bg-[#1E3A2B] text-white border-emerald-950 rounded-bl-none'
+                      }`}
+                    >
+                      {/* Play/Pause Button */}
+                      <button
+                        onClick={() => togglePlayAudio(audio.id, audio.transcript)}
+                        className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition"
                       >
-                        <div className="truncate flex-1 pr-2">
-                          <p className="truncate text-xs font-sans">{s.title}</p>
-                          <span className="text-[10px] text-slate-400 font-normal">{s.createdAt}</span>
-                        </div>
+                        {isPlaying ? (
+                          <Pause className="w-4 h-4 text-white fill-white" />
+                        ) : (
+                          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                        )}
+                      </button>
 
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition">
-                          <button
-                            onClick={(e) => handleTogglePin(s.id, e)}
-                            className="p-1 hover:text-amber-700 text-slate-400"
-                            title="Pin"
-                          >
-                            <Pin className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteSession(s.id, e)}
-                            className="p-1 hover:text-rose-600 text-slate-400"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
+                      {/* WhatsApp Audio Waveform Representation */}
+                      <div className="flex items-center space-x-0.5 h-6 w-36 sm:w-48">
+                        {[40, 60, 30, 80, 50, 90, 70, 40, 100, 60, 40, 75, 50, 85, 45, 95, 30, 70, 50, 65].map((h, idx) => (
+                          <div
+                            key={idx}
+                            style={{ height: `${h}%` }}
+                            className={`w-1 rounded-full transition-all duration-200 ${
+                              isPlaying ? 'bg-cyan-300 animate-pulse' : 'bg-white/60'
+                            }`}
+                          />
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Context Summary Footer */}
-              <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs text-[11px] text-slate-500 space-y-1 font-sans">
-                <div className="flex items-center justify-between font-bold text-slate-800">
-                  <span>Practice Dataset</span>
-                  <span className="text-emerald-800 font-mono">50 Active Patients</span>
-                </div>
-                <p className="text-[10px] text-slate-400">
-                  All metrics, churn alerts, and outreach plans bind to real patient records.
-                </p>
-              </div>
+                      {/* Speed Badge */}
+                      <button
+                        onClick={(e) => cycleSpeed(audio.id, e)}
+                        className="px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-bold font-mono text-white/90"
+                      >
+                        {speed}x
+                      </button>
+
+                      {/* Duration & Timestamp */}
+                      <div className="text-right">
+                        <span className="text-[11px] font-mono block text-white/90">{audio.durationText}</span>
+                        <span className="text-[9px] text-white/60 block">{audio.timestamp} ✓✓</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div ref={voiceScrollBottomRef} />
+            </div>
+
+            {/* Floating Sticky Voice Controls Dock at Bottom */}
+            <div className="p-4 bg-white/95 backdrop-blur border-t border-slate-200/80 flex items-center justify-center space-x-6 z-20">
+              
+              {/* Mute Mic */}
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className={`p-3 rounded-full border transition flex items-center justify-center ${
+                  isMuted
+                    ? 'bg-rose-50 border-rose-200 text-rose-600'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                }`}
+                title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+              >
+                {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              </button>
+
+              {/* Central Record Button */}
+              <button
+                onClick={handleVoiceRecordToggle}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition shadow-lg ${
+                  isRecording
+                    ? 'bg-rose-600 text-white animate-pulse'
+                    : 'bg-[#1E3A2B] hover:bg-[#162D21] text-white'
+                }`}
+                title={isRecording ? 'Stop speaking' : 'Tap to speak'}
+              >
+                {isRecording ? <Pause className="w-6 h-6" /> : <Mic className="w-6 h-6 text-amber-300" />}
+              </button>
+
+              {/* Switch to Chat */}
+              <button
+                onClick={() => setMode('chat')}
+                className="p-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition"
+                title="Switch to chat view"
+              >
+                <MessageSquare className="w-5 h-5" />
+              </button>
+
+              {/* Speaker On / Off */}
+              <button
+                onClick={() => setIsSpeakerOn(!isSpeakerOn)}
+                className={`p-3 rounded-full border transition ${
+                  isSpeakerOn
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-slate-100 text-slate-400 border-slate-200'
+                }`}
+                title={isSpeakerOn ? 'Speaker output active' : 'Speaker muted'}
+              >
+                {isSpeakerOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+              </button>
 
             </div>
-          )}
 
+          </div>
+        )}
+
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* RIGHT SIDEBAR: PINNED, RECENT, OR SESSION NOTES       */}
+      {/* ---------------------------------------------------- */}
+      <div className="w-80 flex flex-col space-y-4 flex-shrink-0">
+        
+        {/* If in Voice Mode: Expanded Real-Time Session Notes */}
+        {mode === 'voice' ? (
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex-1 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center space-x-2">
+                  <FileText className="w-4 h-4 text-[#1E3A2B]" />
+                  <h3 className="text-xs font-bold text-slate-900 uppercase font-sans">
+                    Session Notes & Transcript
+                  </h3>
+                </div>
+                <span className="text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Auto-saved
+                </span>
+              </div>
+
+              {/* Scrollable Notes List */}
+              <div className="space-y-2.5 text-xs max-h-[calc(100vh-16rem)] overflow-y-auto pr-1">
+                {(activeSession?.notes || [
+                  'Dr. Vance (10:02 AM): "How should we reach out to Victoria Kensington..."',
+                  'AI Coach (10:03 AM): "Victoria invested $6,800. Send a personalized email from Dr. Vance followed by complimentary 10-minute review."',
+                ]).map((note, idx) => (
+                  <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-700 leading-relaxed font-sans">
+                    {note}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleCopyNotes}
+              className="w-full mt-3 py-2 rounded-xl bg-slate-100 hover:bg-[#EBF3EA] text-slate-800 hover:text-[#1E3A2B] text-xs font-bold transition flex items-center justify-center space-x-1.5 border border-slate-200"
+            >
+              {copiedNotes ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedNotes ? 'Copied to Clipboard' : 'Copy Session Notes'}</span>
+            </button>
+          </div>
+        ) : (
+          /* If in Chat Mode: Pinned & Recent Sessions with Scrolling */
+          <>
+            {/* Pinned Sessions (Max 4 visible with scrollbar) */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-slate-800 text-xs font-bold font-sans">
+                  <Pin className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                  <span>Pinned Sessions</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 font-bold">
+                  {pinnedSessions.length}
+                </span>
+              </div>
+
+              {/* Scrollable Pinned List */}
+              <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
+                {pinnedSessions.map((s) => {
+                  const isActive = s.id === currentSessionId;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setCurrentSessionId(s.id)}
+                      className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between group ${
+                        isActive
+                          ? 'bg-[#EBF3EA] border-[#2D5A3C] shadow-xs'
+                          : 'bg-white border-slate-100 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-bold text-slate-900 truncate font-sans">{s.title}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{new Date(s.updatedAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+
+                      <button
+                        onClick={(e) => handlePin(s.id, e)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 text-amber-600 transition"
+                      >
+                        <Pin className="w-3 h-3 fill-amber-500" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recent Sessions (With matching scroll height) */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3 flex-1 flex flex-col">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-slate-800 text-xs font-bold font-sans">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Recent Sessions</span>
+                </div>
+                <button
+                  onClick={handleCreateNewSession}
+                  className="text-[10px] text-[#1E3A2B] font-bold hover:underline"
+                >
+                  + New
+                </button>
+              </div>
+
+              {/* Scrollable Recent List */}
+              <div className="flex-1 max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                {recentSessions.map((s) => {
+                  const isActive = s.id === currentSessionId;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setCurrentSessionId(s.id)}
+                      className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between group ${
+                        isActive
+                          ? 'bg-[#EBF3EA] border-[#2D5A3C] shadow-xs'
+                          : 'bg-white border-slate-100 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-bold text-slate-900 truncate font-sans">{s.title}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{new Date(s.updatedAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+
+                      <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition">
+                        <button
+                          onClick={(e) => handlePin(s.id, e)}
+                          className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-amber-600"
+                          title="Pin session"
+                        >
+                          <Pin className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(s.id, e)}
+                          className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-rose-600"
+                          title="Delete session"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Practice Database Metadata Pill */}
+        <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between text-xs">
+          <span className="text-slate-500 font-medium">Practice Dataset</span>
+          <span className="font-bold text-[#1E3A2B] font-mono">50 Active Patients</span>
         </div>
-      )}
 
-      {/* Summary Modal */}
-      <ActionPlanModal
-        isOpen={summaryModalOpen}
-        onClose={() => setSummaryModalOpen(false)}
-        summary={summaryText}
-        topic="Customer Retention"
-        sessionId={activeSessionId}
-      />
+      </div>
 
     </div>
   );

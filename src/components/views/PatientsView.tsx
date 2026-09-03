@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { PatientRecord } from '@/types/clinic';
 import { createOrGetPatientSession } from '@/lib/sessionStore';
+import { PatientDetailsModal } from '../PatientDetailsModal';
 import {
   Users,
   Calendar,
@@ -16,6 +17,10 @@ import {
   TrendingUp,
   AlertTriangle,
   UserCheck,
+  MoreVertical,
+  Trash2,
+  Eye,
+  Mic,
 } from 'lucide-react';
 
 const FALLBACK_PATIENTS: PatientRecord[] = [
@@ -33,6 +38,7 @@ const FALLBACK_PATIENTS: PatientRecord[] = [
     rebooked: false,
     satisfaction_score: 4.9,
     daysSinceLastVisit: 64,
+    notes: "Ultra-high net worth VIP. 90-day window approaching. Prime candidate for maintenance or booster."
   },
   {
     id: "cust-002",
@@ -48,6 +54,7 @@ const FALLBACK_PATIENTS: PatientRecord[] = [
     rebooked: true,
     satisfaction_score: 4.6,
     daysSinceLastVisit: 63,
+    notes: "Follow-up scan scheduled for 90-day progress review."
   },
   {
     id: "cust-003",
@@ -63,6 +70,7 @@ const FALLBACK_PATIENTS: PatientRecord[] = [
     rebooked: true,
     satisfaction_score: 4.6,
     daysSinceLastVisit: 46,
+    notes: "Pleased with core definition. Considering arms."
   },
   {
     id: "cust-004",
@@ -78,6 +86,7 @@ const FALLBACK_PATIENTS: PatientRecord[] = [
     rebooked: false,
     satisfaction_score: 4.7,
     daysSinceLastVisit: 108,
+    notes: "Completed 2 of 3 sessions. 108 days inactive. Priority outreach!"
   },
   {
     id: "cust-005",
@@ -93,6 +102,7 @@ const FALLBACK_PATIENTS: PatientRecord[] = [
     rebooked: true,
     satisfaction_score: 4.9,
     daysSinceLastVisit: 69,
+    notes: "Biostimulator collagen building. Great response."
   },
   {
     id: "cust-006",
@@ -108,11 +118,12 @@ const FALLBACK_PATIENTS: PatientRecord[] = [
     rebooked: false,
     satisfaction_score: 4.8,
     daysSinceLastVisit: 91,
+    notes: "91 days since last session. Needs 3rd session reminder."
   },
 ];
 
 interface PatientsViewProps {
-  onCoachClient: (prompt: string, sessionId?: string) => void;
+  onCoachClient: (prompt: string, sessionId?: string, mode?: 'chat' | 'voice') => void;
   initialFilter?: string;
 }
 
@@ -128,6 +139,11 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
+  // Dropdown & Modal state
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [detailModalPatient, setDetailModalPatient] = useState<PatientRecord | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
   useEffect(() => {
     fetch('/api/customers')
       .then((res) => res.json())
@@ -140,6 +156,13 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
       .catch((err) => {
         console.error('Failed to load customers from API, using seeded patients:', err);
       });
+  }, []);
+
+  // Close open dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
   const totalPatients = patients.length;
@@ -181,18 +204,36 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   const totalPages = Math.max(1, Math.ceil(sortedPatients.length / pageSize));
   const paginatedPatients = sortedPatients.slice((page - 1) * pageSize, page * pageSize);
 
-  const handlePatientCoachClick = (p: PatientRecord) => {
+  const handleOpenDetails = (p: PatientRecord, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenMenuId(null);
+    setDetailModalPatient(p);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleDeletePatient = (patientId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenMenuId(null);
+    if (confirm('Are you sure you want to remove this patient record?')) {
+      setPatients((prev) => prev.filter((p) => p.id !== patientId));
+    }
+  };
+
+  const handleStartCoachingFromModal = (
+    patient: PatientRecord,
+    objective: string,
+    mode: 'chat' | 'voice'
+  ) => {
+    setIsDetailModalOpen(false);
     const session = createOrGetPatientSession(
-      p.id,
-      p.name,
-      p.treatment,
-      p.amount_spent,
-      p.last_visit
+      patient.id,
+      patient.name,
+      patient.treatment,
+      patient.amount_spent,
+      patient.last_visit
     );
-    onCoachClient(
-      `How should we reach out to ${p.name}, who spent $${p.amount_spent.toLocaleString()} on ${p.treatment} with ${p.provider} on ${p.last_visit} and hasn't rebooked yet? Draft a personalized retention strategy.`,
-      session.id
-    );
+    const promptText = `Objective: ${objective}. How should Dr. Vance and Aura Clinic structure a personalized retention & care protocol for ${patient.name}, who spent $${patient.amount_spent.toLocaleString()} on ${patient.treatment} with ${patient.provider} on ${patient.last_visit}?`;
+    onCoachClient(promptText, session.id, mode);
   };
 
   return (
@@ -356,61 +397,102 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
                     <th className="py-2.5 px-2">Status</th>
                     <th className="py-2.5 px-2">LTV</th>
                     <th className="py-2.5 px-2">Score</th>
-                    <th className="py-2.5 px-2 text-right">Action</th>
+                    <th className="py-2.5 px-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {paginatedPatients.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3 px-2">
-                        <div className="flex items-center space-x-2">
-                          <img
-                            src={p.avatarUrl || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80"}
-                            alt={p.name}
-                            className="w-7 h-7 rounded-full object-cover border border-slate-200"
-                          />
-                          <div>
-                            <p className="font-bold text-slate-900 font-sans">{p.name}</p>
-                            <p className="text-[10px] text-slate-400">{p.email}</p>
+                  {paginatedPatients.map((p) => {
+                    const isMenuOpen = openMenuId === p.id;
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50/70 transition">
+                        <td className="py-3 px-2">
+                          <div className="flex items-center space-x-2">
+                            <img
+                              src={p.avatarUrl || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80"}
+                              alt={p.name}
+                              className="w-7 h-7 rounded-full object-cover border border-slate-200"
+                            />
+                            <div>
+                              <p className="font-bold text-slate-900 font-sans">{p.name}</p>
+                              <p className="text-[10px] text-slate-400">{p.email}</p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">
-                          {p.treatment}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 text-slate-600 text-[11px]">{p.provider}</td>
-                      <td className="py-3 px-2 text-slate-500 font-mono text-[11px]">{p.last_visit}</td>
-                      <td className="py-3 px-2">
-                        {p.rebooked ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            ● Rebooked
+                        </td>
+                        <td className="py-3 px-2">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">
+                            {p.treatment}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            ● Follow-up due
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2 font-bold text-slate-900 font-sans">
-                        ${p.amount_spent.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-2 font-bold text-slate-700">
-                        ⭐ {p.satisfaction_score}
-                      </td>
-                      <td className="py-3 px-2 text-right">
-                        <button
-                          onClick={() => handlePatientCoachClick(p)}
-                          className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-[#1E3A2B] hover:bg-[#EBF3EA] text-[#1E3A2B] text-[11px] font-bold inline-flex items-center space-x-1 shadow-xs transition"
-                          title="Generate patient coaching session"
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>Coach</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-2 text-slate-600 text-[11px]">{p.provider}</td>
+                        <td className="py-3 px-2 text-slate-500 font-mono text-[11px]">{p.last_visit}</td>
+                        <td className="py-3 px-2">
+                          {p.rebooked ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              ● Rebooked
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              ● Follow-up due
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 font-bold text-slate-900 font-sans">
+                          ${p.amount_spent.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-2 font-bold text-slate-700">
+                          ⭐ {p.satisfaction_score}
+                        </td>
+                        
+                        {/* 3-Dot Action Menu Button */}
+                        <td className="py-3 px-2 text-right relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(isMenuOpen ? null : p.id);
+                            }}
+                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 shadow-xs transition"
+                            title="Actions menu"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Action Dropdown Menu */}
+                          {isMenuOpen && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-2 top-10 w-44 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-30 text-left animate-fadeIn"
+                            >
+                              <button
+                                onClick={(e) => handleOpenDetails(p, e)}
+                                className="w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center space-x-2 font-medium"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Patient Details</span>
+                              </button>
+
+                              <button
+                                onClick={(e) => handleOpenDetails(p, e)}
+                                className="w-full px-3 py-2 text-xs text-[#1E3A2B] hover:bg-[#EBF3EA] flex items-center space-x-2 font-bold"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                <span>AI Coaching Strategy</span>
+                              </button>
+
+                              <div className="my-1 border-t border-slate-100" />
+
+                              <button
+                                onClick={(e) => handleDeletePatient(p.id, e)}
+                                className="w-full px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center space-x-2 font-medium"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete Record</span>
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -542,6 +624,14 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
         </div>
 
       </div>
+
+      {/* Patient Details & AI Coach Modal */}
+      <PatientDetailsModal
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        patient={detailModalPatient}
+        onStartCoach={handleStartCoachingFromModal}
+      />
 
     </div>
   );
