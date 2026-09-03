@@ -35,6 +35,8 @@ import {
   FileText,
   Radio,
   Sliders,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 
 interface AiCoachViewProps {
@@ -62,6 +64,9 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   const [activePlayingMsgId, setActivePlayingMsgId] = useState<string | null>(null);
   const [playbackSpeeds, setPlaybackSpeeds] = useState<Record<string, number>>({});
 
+  // Delete Confirmation Modal State
+  const [sessionToDelete, setSessionToDelete] = useState<CoachSession | null>(null);
+
   const chatScrollBottomRef = useRef<HTMLDivElement>(null);
   const speechRecognitionRef = useRef<any>(null);
   const isRecordingRef = useRef<boolean>(false);
@@ -86,7 +91,6 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     }
   }, [initialSessionId]);
 
-  // Keep isRecordingRef in sync with isVoiceRecording
   useEffect(() => {
     isRecordingRef.current = isVoiceRecording;
   }, [isVoiceRecording]);
@@ -101,7 +105,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
         clearInterval(speechIntervalRef.current);
       }
       if (speechRecognitionRef.current) {
-        speechRecognitionRef.current.stop();
+        try { speechRecognitionRef.current.stop(); } catch(e) {}
       }
     };
   }, []);
@@ -121,9 +125,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     chatScrollBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages, isAiResponding]);
 
-  // Web Speech STT Dictation Handler (Continuous Recording Fix)
+  // Web Speech STT Dictation Handler (Fast, Real-Time, Clear)
   const handleToggleVoiceDictation = () => {
     if (isVoiceRecording) {
+      // User clicked to stop mic: stop recognition, keep current text in input box
       isRecordingRef.current = false;
       setIsVoiceRecording(false);
       if (speechRecognitionRef.current) {
@@ -138,7 +143,6 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRec();
       
-      // FIX: Enable Continuous listening & Interim results so it NEVER stops after 1 second
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
@@ -151,6 +155,8 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       };
 
       recognition.onresult = (event: any) => {
+        if (!isRecordingRef.current) return;
+
         let interim = '';
         let final = '';
 
@@ -171,8 +177,6 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       };
 
       recognition.onerror = (err: any) => {
-        console.warn('Speech recognition warning/error:', err);
-        // Do not immediately close if it is just a no-speech event
         if (err.error !== 'no-speech' && err.error !== 'audio-capture') {
           isRecordingRef.current = false;
           setIsVoiceRecording(false);
@@ -180,7 +184,6 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       };
 
       recognition.onend = () => {
-        // Auto-restart if user has not explicitly stopped listening
         if (isRecordingRef.current) {
           try {
             recognition.start();
@@ -205,7 +208,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       setTimeout(() => {
         setInputMessage('Why are some consultations not converting?');
         setIsVoiceRecording(false);
-      }, 2500);
+      }, 2000);
     }
   };
 
@@ -311,16 +314,21 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
     }, 850);
   };
 
+  // Clean Sending Handler (Instantly resets input box and halts mic)
   const handleSendMessage = (textToSend?: string) => {
     const text = (textToSend || inputMessage).trim();
     if (!text || !activeSession || isAiResponding) return;
 
-    if (isVoiceRecording) {
-      isRecordingRef.current = false;
-      setIsVoiceRecording(false);
-      if (speechRecognitionRef.current) {
-        try { speechRecognitionRef.current.stop(); } catch(e) {}
-      }
+    // Immediately stop speech recording and clear transcript buffers
+    isRecordingRef.current = false;
+    setIsVoiceRecording(false);
+    finalTranscriptRef.current = '';
+    setInputMessage('');
+
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch (e) {}
     }
 
     const userMsg: ChatMessage = {
@@ -332,14 +340,12 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
 
     const updatedMsgs = [...activeSession.messages, userMsg];
     saveSessionMessages(activeSession.id, updatedMsgs);
-    setInputMessage('');
-    finalTranscriptRef.current = '';
     refreshSessions();
 
     triggerHardenedAiAnswer(text, { ...activeSession, messages: updatedMsgs });
   };
 
-  // COMPLETE Voice Playback (No 300 char truncation + Chrome Pause bug prevention)
+  // Complete Voice Playback TTS
   const handleToggleVoicePlayback = (msgId: string, text: string) => {
     if (activePlayingMsgId === msgId) {
       setActivePlayingMsgId(null);
@@ -358,7 +364,6 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
         clearInterval(speechIntervalRef.current);
       }
 
-      // Clean ALL markdown symbols, quotes, headers, and bullet characters cleanly
       const cleanFullText = text
         .replace(/###/g, '')
         .replace(/##/g, '')
@@ -387,7 +392,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
         if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
       };
 
-      // Workaround for Chrome's 15s pause bug on long speech synthesis
+      // Keep speech synthesis active for long answers
       speechIntervalRef.current = setInterval(() => {
         if (window.speechSynthesis.speaking) {
           window.speechSynthesis.pause();
@@ -410,7 +415,6 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
     const next = current === 1 ? 1.5 : current === 1.5 ? 2 : 1;
     setPlaybackSpeeds({ ...playbackSpeeds, [msgId]: next });
 
-    // If currently playing, restart with new speed
     if (activePlayingMsgId === msgId) {
       const msg = activeSession?.messages.find((m) => m.id === msgId);
       if (msg) {
@@ -432,10 +436,15 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
     refreshSessions();
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleOpenDeleteModal = (session: CoachSession, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Delete this coaching session?')) {
-      deleteSession(id);
+    setSessionToDelete(session);
+  };
+
+  const handleConfirmDelete = () => {
+    if (sessionToDelete) {
+      deleteSession(sessionToDelete.id);
+      setSessionToDelete(null);
       refreshSessions();
     }
   };
@@ -451,7 +460,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
   ];
 
   return (
-    <div className="flex h-[calc(100vh-2.5rem)] w-full gap-5 overflow-hidden select-none">
+    <div className="flex h-[calc(100vh-2.5rem)] w-full gap-5 overflow-hidden select-none relative">
       
       {/* MAIN CHAT WORKSPACE */}
       <div className="flex-1 flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden relative">
@@ -615,7 +624,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
               }}
               placeholder={
                 isVoiceRecording
-                  ? '🎙️ Listening continuously... speak your query...'
+                  ? '🎙️ Listening... speak now (click mic to stop)...'
                   : 'Ask Aura about patient retention, 90-day churn, or clinical SOPs...'
               }
               className="flex-1 bg-transparent text-xs text-slate-900 placeholder-slate-400 focus:outline-none"
@@ -629,10 +638,10 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
                   ? 'bg-rose-600 text-white animate-pulse shadow-xs'
                   : 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'
               }`}
-              title={isVoiceRecording ? 'Click to stop listening' : 'Dictate with voice (Continuous speech recognition)'}
+              title={isVoiceRecording ? 'Click to stop listening' : 'Dictate with voice'}
             >
               <Mic className="w-4 h-4" />
-              {isVoiceRecording && <span className="text-[10px] font-mono font-bold">Listening... (click to stop)</span>}
+              {isVoiceRecording && <span className="text-[10px] font-mono font-bold">Listening</span>}
             </button>
 
             {/* Send Button */}
@@ -655,7 +664,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
       {/* RIGHT SIDEBAR: PINNED & RECENT SESSIONS */}
       <div className="w-80 flex flex-col space-y-4 flex-shrink-0">
         
-        {/* Pinned Sessions (Max 4 visible with scrollbar) */}
+        {/* Pinned Sessions */}
         <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 text-slate-800 text-xs font-bold font-sans">
@@ -739,7 +748,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
                       <Pin className="w-3 h-3" />
                     </button>
                     <button
-                      onClick={(e) => handleDelete(s.id, e)}
+                      onClick={(e) => handleOpenDeleteModal(s, e)}
                       className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-rose-600"
                       title="Delete session"
                     >
@@ -762,6 +771,43 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
         </div>
 
       </div>
+
+      {/* Delete Coaching Session Confirmation Modal */}
+      {sessionToDelete && (
+        <div className="fixed inset-0 z-[9999] w-screen h-screen bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn select-none">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 font-sans">Delete Coaching Session</h3>
+                <p className="text-xs text-slate-500 font-sans mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 font-sans bg-slate-50 p-3 rounded-xl border border-slate-100">
+              Are you sure you want to delete <strong className="text-slate-900">&ldquo;{sessionToDelete.title}&rdquo;</strong>? All messages and transcripts in this session will be permanently removed.
+            </p>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setSessionToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center space-x-1.5 transition shadow-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Session</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
