@@ -12,18 +12,20 @@ import {
   Award,
   Sparkles,
   MessageSquare,
-  Mic,
   Clock,
   CheckCircle2,
   AlertCircle,
   FileText,
+  ShieldAlert,
+  Activity,
+  HeartPulse,
 } from 'lucide-react';
 
 interface PatientDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   patient: PatientRecord | null;
-  onStartCoach: (patient: PatientRecord, objective: string, mode: 'chat' | 'voice') => void;
+  onStartCoach: (patient: PatientRecord, objective: string) => void;
 }
 
 export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
@@ -33,7 +35,6 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
   onStartCoach,
 }) => {
   const [selectedObjective, setSelectedObjective] = useState('90-Day VIP Churn Recovery');
-  const [selectedMode, setSelectedMode] = useState<'chat' | 'voice'>('chat');
 
   if (!isOpen || !patient) return null;
 
@@ -41,7 +42,7 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
     {
       id: 'churn',
       title: '90-Day VIP Churn Recovery',
-      desc: 'Draft personalized retention outreach and assess touch-up rebooking incentives.',
+      desc: 'Draft personalized retention outreach and assess touch-up rebooking incentives under SOP-RET-001.',
     },
     {
       id: 'post_op',
@@ -61,16 +62,16 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fadeIn">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fadeIn select-none">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="px-6 py-4 bg-[#FAF9F6] border-b border-slate-200/80 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3.5">
             <img
               src={patient.avatarUrl || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80"}
               alt={patient.name}
-              className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-xs"
+              className="w-12 h-12 rounded-full object-cover border border-slate-200 shadow-xs"
             />
             <div>
               <div className="flex items-center space-x-2">
@@ -84,9 +85,12 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
                 >
                   {patient.rebooked ? '● Rebooked' : '● Follow-up due'}
                 </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 font-mono">
+                  {patient.vip_tier || (patient.amount_spent >= 3000 ? 'Diamond VIP' : 'Gold Tier')}
+                </span>
               </div>
               <p className="text-xs text-slate-500 font-sans mt-0.5">
-                {patient.treatment} · {patient.provider}
+                {patient.treatment} · Provider: <strong className="text-slate-700">{patient.provider}</strong>
               </p>
             </div>
           </div>
@@ -100,9 +104,9 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           
-          {/* Clinical & Financial Summary Cards */}
+          {/* 4 Financial & Inactivity Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-[10px] text-slate-400 font-medium block">Lifetime Spend</span>
@@ -127,9 +131,9 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* Contact Details & Clinical Notes */}
-          <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-slate-200/70 space-y-2 text-xs">
-            <div className="flex items-center justify-between text-slate-600">
+          {/* Clinical Profile & Medical History */}
+          <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-slate-200/70 space-y-3 text-xs">
+            <div className="flex items-center justify-between font-medium text-slate-700">
               <span className="flex items-center space-x-1.5">
                 <Mail className="w-3.5 h-3.5 text-slate-400" />
                 <span>{patient.email}</span>
@@ -139,18 +143,37 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
                 <span>{patient.phone}</span>
               </span>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-[11px]">
+              <div>
+                <span className="text-slate-400 block font-sans">Next Recommended Procedure:</span>
+                <span className="font-bold text-[#1E3A2B] font-sans">
+                  {patient.next_recommended_treatment || '3-Month Neurotoxin & Dermal Assessment'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-sans">Preferred Contact Channel:</span>
+                <span className="font-bold text-slate-800 font-sans">
+                  {patient.preferred_contact || 'SMS & Email'}
+                </span>
+              </div>
+            </div>
+
             {patient.notes && (
-              <p className="text-[11px] text-slate-600 pt-2 border-t border-slate-200/60 font-sans italic">
-                &ldquo;{patient.notes}&rdquo;
-              </p>
+              <div className="pt-2 border-t border-slate-200/60">
+                <span className="text-slate-400 text-[10px] block font-sans">Clinical & Physician Notes:</span>
+                <p className="text-[11px] text-slate-700 font-sans italic mt-0.5">
+                  &ldquo;{patient.notes}&rdquo;
+                </p>
+              </div>
             )}
           </div>
 
           {/* AI Coach Action Launch Section */}
-          <div className="space-y-3 pt-2">
+          <div className="space-y-3 pt-1">
             <div className="flex items-center space-x-2 text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">
               <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Launch AI Coaching Session</span>
+              <span>Select AI Coaching Strategy</span>
             </div>
 
             {/* Objective Options */}
@@ -178,39 +201,6 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
                 </div>
               ))}
             </div>
-
-            {/* Mode Selector: Chat vs Voice */}
-            <div className="flex items-center space-x-3 pt-2">
-              <span className="text-xs font-bold text-slate-700 font-sans">Coaching Format:</span>
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedMode('chat')}
-                  className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold transition flex items-center space-x-1.5 ${
-                    selectedMode === 'chat'
-                      ? 'bg-[#1E3A2B] text-white border-[#1E3A2B]'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>💬 Chat AI Coach</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedMode('voice')}
-                  className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold transition flex items-center space-x-1.5 ${
-                    selectedMode === 'voice'
-                      ? 'bg-[#1E3A2B] text-white border-[#1E3A2B]'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <Mic className="w-3.5 h-3.5 text-amber-300" />
-                  <span>🎙️ Voice AI Coach</span>
-                </button>
-              </div>
-            </div>
-
           </div>
 
         </div>
@@ -221,15 +211,15 @@ export const PatientDetailsModal: React.FC<PatientDetailsModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50"
           >
-            Cancel
+            Close
           </button>
 
           <button
-            onClick={() => onStartCoach(patient, selectedObjective, selectedMode)}
+            onClick={() => onStartCoach(patient, selectedObjective)}
             className="px-5 py-2 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold flex items-center space-x-2 transition shadow-xs"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Start {selectedMode === 'voice' ? 'Voice' : 'Chat'} Coaching</span>
+            <span>Launch AI Coaching Plan</span>
           </button>
         </div>
 

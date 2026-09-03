@@ -16,42 +16,41 @@ import {
   FileText,
   Bookmark,
   Edit3,
+  Save,
+  Trash2,
+  Lock,
+  RefreshCw,
 } from 'lucide-react';
 
 interface DocumentReaderModalProps {
   isOpen: boolean;
   onClose: () => void;
   doc: KnowledgeDoc | null;
+  onUpdateDocContent?: (docId: string, updatedPages: { title: string; content: string }[]) => void;
+  onDeleteDoc?: (docId: string) => void;
 }
 
 export const DocumentReaderModal: React.FC<DocumentReaderModalProps> = ({
   isOpen,
   onClose,
   doc,
+  onUpdateDocContent,
+  onDeleteDoc,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [searchQuery, setSearchQuery] = useState('');
   const [isBookmarked, setIsBookmarked] = useState(false);
-  
+
+  // In-App Protocol Editing State (For Built-in Clinical SOPs)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editablePages, setEditablePages] = useState<{ title: string; content: string }[]>([]);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // Close modal on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !doc) return null;
-
-  // Rich Clinical Multi-Page SOP Document Content
-  const docPagesMap: Record<string, { title: string; content: string }[]> = {
+  const defaultPagesMap: Record<string, { title: string; content: string }[]> = {
     'doc-1': [
       {
         title: 'SECTION 1: 90-DAY VIP RETENTION FRAMEWORK',
@@ -182,20 +181,80 @@ Supervising Physician: Dr. Chloe Vance, MD
 • 0% APR 12-month patient financing available via CareCredit and PatientFi.`,
       },
     ],
+    'doc-3': [
+      {
+        title: 'SECTION 1: NEUROTOXIN & FILLER REBOOKING PROTOCOL',
+        content: `AURA CLINIC — CLINICAL REBOOKING PROTOCOL: INJECTABLES
+Supervising Physician: Dr. Chloe Vance, MD
+
+1. NEUROTOXIN REBOOKING INTERVALS
+• Glabella, Forehead, and Crow's Feet: 12–14 weeks optimal duration.
+• Masseter Slimming / Bruxism: 16–20 weeks maintenance interval.
+• Trapezius ("Barbie Tox"): 16–24 weeks duration.
+
+2. COMBINATION THERAPIES
+• Always recommend dermal filler assessment alongside neurotoxin at the 90-day mark.
+• Dermal filler hydration maintenance with skin boosters improves patient satisfaction by 38%.`,
+      },
+    ],
+    'doc-4': [
+      {
+        title: 'SECTION 1: CONSULTATION OBJECTION HANDLING SCRIPT',
+        content: `AURA CLINIC — CONSULTATION CONVERSION & OBJECTION SCRIPT
+For Aesthetic Coordinators & Clinicians
+
+1. HANDLING THE PRICE OBJECTION ("It's more expensive than I thought")
+Coordinator Response:
+"I completely understand. When you invest in your face, the results depend entirely on physician anatomical precision and product longevity. Dr. Vance crafts a 12-month facial roadmap so you receive optimal natural lifting without ever looking overfilled. We also offer 0% APR 12-month financing with CareCredit so you can get started today for just $180/month."
+
+2. HANDLING THE HESITATION OBJECTION ("I need to think about it")
+Coordinator Response:
+"Of course! Dr. Vance's priority is that you feel 100% confident. Let's reserve your procedural slot for next Thursday so you maintain your preferred time, and we will email you your personalized 3D facial plan to review at home."`,
+      },
+    ],
+    'doc-5': [
+      {
+        title: 'SECTION 1: LASER GENESIS & RF MICRONEEDLING SOP',
+        content: `AURA CLINIC — ENERGY DEVICE CLINICAL PROTOCOL
+Supervising Physician: Dr. Chloe Vance, MD
+
+1. PRE-PROCEDURAL SCREENING
+• Contraindications: Active cold sores, pregnancy, recent Accutane use within 6 months.
+• Patch test required on Fitzpatrick skin types IV-VI prior to high-frequency RF.
+
+2. POST-CARE PROTOCOL
+• Apply cold compress and clinical peptide soothing balm.
+• Advise strict SPF 50+ broad-spectrum protection for 14 days post-procedure.`,
+      },
+    ],
   };
 
-  const pages = docPagesMap[doc.id] || [
-    {
-      title: 'PAGE 1: PROTOCOL OVERVIEW',
-      content: `AURA CLINIC — PROTOCOL DOCUMENT\nTitle: ${doc.title}\nCategory: ${doc.category}\n\n${doc.description}\n\nIndexed Chunks: ${doc.chunks} vectors embedded into Supabase pgvector.\nSemantic dimensions: 1024 (Jina v3 embedding model).\n\nClinical guidelines and operational workflows are fully connected to the AI Coach engine for real-time practice retrieval.`,
-    },
-    {
-      title: 'PAGE 2: CLINICAL WORKFLOW',
-      content: `AURA CLINIC — PROTOCOL DOCUMENT (PAGE 2)\n\nStaff Compliance & Quality Assurance:\n- All clinicians and front-desk coordinators must review and certify adherence annually.\n- Audit logs maintained in clinic management system.`,
-    },
-  ];
+  useEffect(() => {
+    if (doc) {
+      const initial = doc.contentPages || defaultPagesMap[doc.id] || [
+        {
+          title: 'PAGE 1: CLINICAL DOCUMENT',
+          content: `${doc.title}\nCategory: ${doc.category}\n\n${doc.description}\n\nIndexed in Supabase pgvector (Jina v3 1024-dim embeddings).`,
+        },
+      ];
+      setEditablePages(initial);
+      setIsEditing(false);
+    }
+  }, [doc]);
 
-  // Continuous Scroll Listener to update floating page number
+  // Close modal on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isEditing) onClose();
+    };
+    if (isOpen) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isEditing, onClose]);
+
+  if (!isOpen || !doc) return null;
+
+  const isBuiltInDoc = doc.isBuiltIn !== false; // doc-1 through doc-5 are built-in
+
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
     const containerTop = scrollContainerRef.current.scrollTop;
@@ -219,8 +278,17 @@ Supervising Physician: Dr. Chloe Vance, MD
     }
   };
 
+  const handleSaveProtocol = () => {
+    if (onUpdateDocContent && doc) {
+      onUpdateDocContent(doc.id, editablePages);
+    }
+    setIsEditing(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2500);
+  };
+
   const handleDownload = () => {
-    const fullText = pages.map((p, i) => `--- PAGE ${i + 1} ---\n${p.content}`).join('\n\n');
+    const fullText = editablePages.map((p, i) => `--- PAGE ${i + 1}: ${p.title} ---\n${p.content}`).join('\n\n');
     const blob = new Blob([fullText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -233,10 +301,10 @@ Supervising Physician: Dr. Chloe Vance, MD
   return (
     <div className="fixed inset-0 z-50 bg-[#121212] text-white flex flex-col w-screen h-screen overflow-hidden select-none animate-fadeIn">
       
-      {/* WhatsApp / Luxury Top Bar */}
+      {/* Top Luxury Toolbar */}
       <div className="h-16 px-6 bg-[#1F1F1F] border-b border-neutral-800 flex items-center justify-between z-20 flex-shrink-0 shadow-md">
         
-        {/* Left: Document Info */}
+        {/* Left: Document Info & Status Badge */}
         <div className="flex items-center space-x-3.5">
           <button
             onClick={onClose}
@@ -255,31 +323,85 @@ Supervising Physician: Dr. Chloe Vance, MD
                 <h3 className="text-sm font-semibold text-white tracking-wide">
                   {doc.title}.pdf
                 </h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 border border-emerald-700 text-emerald-400 font-mono">
-                  {doc.chunks} Chunks
-                </span>
+                {isBuiltInDoc ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 border border-amber-700 text-amber-300 font-mono flex items-center space-x-1">
+                    <Lock className="w-3 h-3 text-amber-400" />
+                    <span>Core Practice SOP</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-800 border border-neutral-700 text-neutral-300 font-mono">
+                    User Uploaded
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-neutral-400 font-sans mt-0.5">
-                {doc.category} · Vectorized in pgvector · Updated {doc.updated}
+                {doc.category} · Vectorized in pgvector · {doc.chunks} Semantic Chunks
               </p>
             </div>
           </div>
         </div>
 
-        {/* Center: Search Box */}
-        <div className="relative w-80 hidden md:block">
-          <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search document content..."
-            className="w-full pl-9 pr-4 py-1.5 rounded-full bg-neutral-800/80 border border-neutral-700 text-xs text-white placeholder-neutral-400 focus:outline-none focus:border-amber-500"
-          />
+        {/* Center: Search Box & Notification */}
+        <div className="flex items-center space-x-3">
+          {saveSuccess && (
+            <div className="flex items-center space-x-1 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-700 text-emerald-400 text-xs font-mono animate-fadeIn">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Protocol saved & pgvector re-indexed!</span>
+            </div>
+          )}
+
+          <div className="relative w-72 hidden lg:block">
+            <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search clinical terms, dosages..."
+              className="w-full pl-9 pr-4 py-1.5 rounded-full bg-neutral-800/80 border border-neutral-700 text-xs text-white placeholder-neutral-400 focus:outline-none focus:border-amber-500"
+            />
+          </div>
         </div>
 
-        {/* Right Tools: Edit, Bookmark, Print, Download */}
+        {/* Right Tools: Edit, Save, Delete (if uploaded), Print, Download */}
         <div className="flex items-center space-x-2">
+          
+          {/* Edit Protocol Button (Available for Built-in Core SOPs) */}
+          {isBuiltInDoc && (
+            <button
+              onClick={() => {
+                if (isEditing) {
+                  handleSaveProtocol();
+                } else {
+                  setIsEditing(true);
+                }
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center space-x-1.5 transition ${
+                isEditing
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm'
+                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
+              }`}
+            >
+              {isEditing ? <Save className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+              <span>{isEditing ? 'Save Protocol' : 'Edit Protocol'}</span>
+            </button>
+          )}
+
+          {/* Delete Button (Only for User-Uploaded Docs) */}
+          {!isBuiltInDoc && onDeleteDoc && (
+            <button
+              onClick={() => {
+                if (confirm(`Delete uploaded document "${doc.title}"?`)) {
+                  onDeleteDoc(doc.id);
+                  onClose();
+                }
+              }}
+              className="p-2 rounded-full hover:bg-rose-950/80 text-neutral-400 hover:text-rose-400 transition"
+              title="Delete uploaded document"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={() => setIsBookmarked(!isBookmarked)}
             className={`p-2 rounded-full hover:bg-neutral-800 transition ${
@@ -301,7 +423,7 @@ Supervising Physician: Dr. Chloe Vance, MD
           <button
             onClick={handleDownload}
             className="p-2 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
-            title="Download PDF"
+            title="Download text"
           >
             <Download className="w-4 h-4" />
           </button>
@@ -325,7 +447,7 @@ Supervising Physician: Dr. Chloe Vance, MD
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-6 py-10 flex flex-col items-center gap-8 scroll-smooth"
         >
-          {pages.map((page, idx) => (
+          {editablePages.map((page, idx) => (
             <div
               key={idx}
               ref={(el) => { pageRefs.current[idx] = el; }}
@@ -338,25 +460,52 @@ Supervising Physician: Dr. Chloe Vance, MD
               {/* Page Header */}
               <div>
                 <div className="border-b border-slate-200 pb-4 mb-6 flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase tracking-widest text-slate-400">
-                    {page.title}
-                  </span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={page.title}
+                      onChange={(e) => {
+                        const updated = [...editablePages];
+                        updated[idx].title = e.target.value;
+                        setEditablePages(updated);
+                      }}
+                      className="text-xs font-mono uppercase tracking-widest text-slate-700 border-b border-amber-500 bg-amber-50/50 px-2 py-1 w-2/3 focus:outline-none"
+                    />
+                  ) : (
+                    <span className="text-[11px] font-mono uppercase tracking-widest text-slate-400">
+                      {page.title}
+                    </span>
+                  )}
+
                   <span className="text-[11px] font-mono text-emerald-800 font-semibold flex items-center space-x-1">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Supabase pgvector Verified</span>
                   </span>
                 </div>
 
-                {/* Body Content */}
-                <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-sans whitespace-pre-line select-text">
-                  {page.content}
-                </div>
+                {/* Body Content / Inline Editable Area */}
+                {isEditing ? (
+                  <textarea
+                    value={page.content}
+                    onChange={(e) => {
+                      const updated = [...editablePages];
+                      updated[idx].content = e.target.value;
+                      setEditablePages(updated);
+                    }}
+                    rows={22}
+                    className="w-full text-xs sm:text-sm text-slate-900 leading-relaxed font-mono bg-amber-50/30 border border-amber-300 rounded-xl p-4 focus:outline-none focus:border-amber-600 resize-y"
+                  />
+                ) : (
+                  <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-sans whitespace-pre-line select-text">
+                    {page.content}
+                  </div>
+                )}
               </div>
 
               {/* Page Footer */}
               <div className="border-t border-slate-100 pt-6 mt-12 flex items-center justify-between text-[11px] text-slate-400 font-mono">
                 <span>Aura Clinic Clinical Standard Operating Procedures</span>
-                <span>Page {idx + 1} of {pages.length}</span>
+                <span>Page {idx + 1} of {editablePages.length}</span>
               </div>
             </div>
           ))}
@@ -368,7 +517,7 @@ Supervising Physician: Dr. Chloe Vance, MD
           {/* Page Counter */}
           <div className="px-2.5 py-1 text-center">
             <span className="text-xs font-mono font-bold block">{currentPage}</span>
-            <span className="text-[10px] text-neutral-400 font-mono block">/ {pages.length}</span>
+            <span className="text-[10px] text-neutral-400 font-mono block">/ {editablePages.length}</span>
           </div>
 
           <div className="w-full h-px bg-neutral-700" />
@@ -384,8 +533,8 @@ Supervising Physician: Dr. Chloe Vance, MD
           </button>
 
           <button
-            disabled={currentPage >= pages.length}
-            onClick={() => scrollToPage(Math.min(pages.length, currentPage + 1))}
+            disabled={currentPage >= editablePages.length}
+            onClick={() => scrollToPage(Math.min(editablePages.length, currentPage + 1))}
             className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed"
             title="Next Page"
           >

@@ -222,7 +222,7 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   const handleStartCoachingFromModal = (
     patient: PatientRecord,
     objective: string,
-    mode: 'chat' | 'voice'
+     
   ) => {
     setIsDetailModalOpen(false);
     const session = createOrGetPatientSession(
@@ -233,7 +233,7 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
       patient.last_visit
     );
     const promptText = `Objective: ${objective}. How should Dr. Vance and Aura Clinic structure a personalized retention & care protocol for ${patient.name}, who spent $${patient.amount_spent.toLocaleString()} on ${patient.treatment} with ${patient.provider} on ${patient.last_visit}?`;
-    onCoachClient(promptText, session.id, mode);
+    onCoachClient(promptText, session.id);
   };
 
   return (

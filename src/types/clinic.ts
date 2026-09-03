@@ -13,6 +13,14 @@ export interface PatientRecord {
   satisfaction_score: number;
   daysSinceLastVisit?: number;
   notes?: string;
+  // Hardened Clinical & CRM Fields
+  medical_history?: string;
+  preferred_contact?: 'Email' | 'SMS' | 'Phone' | 'WhatsApp';
+  vip_tier?: 'Diamond VIP' | 'Platinum' | 'Gold' | 'Standard';
+  retention_risk_level?: 'High' | 'Moderate' | 'Low' | 'On-Track';
+  conversion_status?: 'Converted' | 'Consultation Pending' | 'Follow-up Due' | 'Completed';
+  next_recommended_treatment?: string;
+  allergies?: string;
 }
 
 export interface KnowledgeDoc {
@@ -24,7 +32,9 @@ export interface KnowledgeDoc {
   status: 'Ready' | 'Indexing' | 'Vectorized in pgvector';
   updated: string;
   description: string;
+  isBuiltIn?: boolean; // Core practice SOPs cannot be deleted, but can be edited
   indexingProgress?: number;
+  contentPages?: { title: string; content: string }[];
 }
 
 export interface ActionItem {

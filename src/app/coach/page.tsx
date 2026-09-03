@@ -10,13 +10,11 @@ function CoachContent() {
   const router = useRouter();
   const sessionId = searchParams.get('sessionId') || 'session-vic-1';
   const prefill = searchParams.get('prompt') || '';
-  const initialMode = (searchParams.get('mode') as 'chat' | 'voice') || 'chat';
 
   return (
     <AiCoachView
       sessionId={sessionId}
       prefilledPrompt={prefill}
-      initialMode={initialMode}
       onNewSession={(newId) => router.push(`/coach?sessionId=${newId}`)}
       onOpenPatientDetail={(pId) => router.push(`/patients?filter=${pId}`)}
     />

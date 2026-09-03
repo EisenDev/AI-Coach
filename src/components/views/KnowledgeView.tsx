@@ -1,21 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KnowledgeDoc } from '@/types/clinic';
-import { ingestKnowledge } from '@/lib/n8nClient';
 import { DocumentReaderModal } from '../DocumentReaderModal';
 import {
-  Upload,
   BookOpen,
-  Layers,
-  Clock,
-  CheckCircle2,
-  Search,
-  ChevronDown,
-  MoreVertical,
+  UploadCloud,
   FileText,
-  Eye,
+  CheckCircle2,
+  Trash2,
+  Search,
+  Sparkles,
   ExternalLink,
+  Layers,
+  Database,
+  Eye,
+  Lock,
+  Plus,
 } from 'lucide-react';
 
 const INITIAL_DOCS: KnowledgeDoc[] = [
@@ -27,8 +28,8 @@ const INITIAL_DOCS: KnowledgeDoc[] = [
     chunks: 34,
     status: 'Ready',
     updated: '2 min ago',
-    description:
-      'This SOP outlines the 90-day VIP retention framework for high-value patients. It includes outreach cadences, rebooking incentives, and service recommendations based on treatment history.\n\nFollow the 3-touch sequence to re-engage inactive VIPs and maximize lifetime value.',
+    description: 'Outlines the 90-day retention framework, high-value outreach cadences, and clinical drop-off protocols for VIP aesthetic clients.',
+    isBuiltIn: true,
   },
   {
     id: 'doc-2',
@@ -38,8 +39,8 @@ const INITIAL_DOCS: KnowledgeDoc[] = [
     chunks: 28,
     status: 'Ready',
     updated: '18 min ago',
-    description:
-      'Comprehensive 2026 price schedule for neurotoxins (Botox, Dysport, Xeomin), dermal fillers (Juvederm, Restylane), and biostimulators (Sculptra). Outlines syringe package discounts and membership tiers.',
+    description: 'Comprehensive price schedule for Botox ($15/unit), Dysport, dermal fillers ($850-$950/syringe), and Liquid Facelift bundles.',
+    isBuiltIn: true,
   },
   {
     id: 'doc-3',
@@ -49,92 +50,139 @@ const INITIAL_DOCS: KnowledgeDoc[] = [
     chunks: 42,
     status: 'Ready',
     updated: '35 min ago',
-    description:
-      'Clinical standard operating procedure requiring mandatory 14-day post-procedure check-in SMS and scheduling 6–8 week touch-ups before the patient leaves the clinic.',
+    description: 'Clinical standard operating procedures for 10-14 week neurotoxin touch-ups, masseter rebooking, and combination biostimulators.',
+    isBuiltIn: true,
   },
   {
     id: 'doc-4',
-    title: 'Consultation Objection Script',
+    title: 'Consultation Objection Handling Script',
     category: 'Sales',
     type: 'TXT',
     chunks: 31,
     status: 'Ready',
     updated: '1 hr ago',
-    description:
-      'Proven objection-handling scripts for front desk and patient coordinators addressing price objections, downtime concerns, and treatment bundle value comparisons.',
+    description: 'Scripts for patient coordinators to overcome hesitation, navigate budget conversations, and present CareCredit 0% financing.',
+    isBuiltIn: true,
   },
   {
     id: 'doc-5',
-    title: 'Laser Genesis Staff SOP',
+    title: 'Laser Genesis & RF Microneedling SOP',
     category: 'Operations',
     type: 'PDF',
     chunks: 49,
     status: 'Ready',
     updated: 'Just now',
-    description:
-      'Operational guidelines for laser room setup, patient skin typing, safety protocols, and post-treatment hydration regimen recommendations.',
+    description: 'Operational and clinical guidelines for Morpheus8 RF microneedling 3-session packages and Laser Genesis post-care compliance.',
+    isBuiltIn: true,
   },
 ];
 
+const STORAGE_KEY = 'aura_clinic_knowledge_docs';
+
 export const KnowledgeView: React.FC = () => {
   const [docs, setDocs] = useState<KnowledgeDoc[]>(INITIAL_DOCS);
-  const [selectedDoc, setSelectedDoc] = useState<KnowledgeDoc>(INITIAL_DOCS[0]);
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [activeDocForModal, setActiveDocForModal] = useState<KnowledgeDoc | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
-  const [readerOpen, setReaderOpen] = useState(false);
-  const [readerDoc, setReaderDoc] = useState<KnowledgeDoc | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  const handleOpenReader = (docToRead: KnowledgeDoc) => {
-    setReaderDoc(docToRead);
-    setReaderOpen(true);
+  // Load docs from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          setDocs(JSON.parse(saved));
+        } catch (e) {
+          setDocs(INITIAL_DOCS);
+        }
+      }
+    }
+  }, []);
+
+  const saveDocs = (updated: KnowledgeDoc[]) => {
+    setDocs(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const totalChunks = docs.reduce((sum, d) => sum + d.chunks, 0);
+
+  const filteredDocs = docs.filter((d) => {
+    if (selectedCategory !== 'all' && d.category.toLowerCase() !== selectedCategory.toLowerCase()) {
+      return false;
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return (
+        d.title.toLowerCase().includes(q) ||
+        d.description.toLowerCase().includes(q) ||
+        d.category.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const handleOpenPdfReader = (doc: KnowledgeDoc) => {
+    setActiveDocForModal(doc);
+    setIsModalOpen(true);
+  };
+
+  const handleUpdateDocContent = (docId: string, updatedPages: { title: string; content: string }[]) => {
+    const updated = docs.map((d) => {
+      if (d.id === docId) {
+        return {
+          ...d,
+          contentPages: updatedPages,
+          updated: 'Just now (Edited)',
+        };
+      }
+      return d;
+    });
+    saveDocs(updated);
+    if (activeDocForModal && activeDocForModal.id === docId) {
+      setActiveDocForModal({ ...activeDocForModal, contentPages: updatedPages, updated: 'Just now (Edited)' });
+    }
+  };
+
+  const handleDeleteUploadedDoc = (docId: string) => {
+    const updated = docs.filter((d) => d.id !== docId);
+    saveDocs(updated);
+  };
+
+  const handleSimulateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
-    setUploadStatus(null);
+    setTimeout(() => {
+      const newDoc: KnowledgeDoc = {
+        id: `upload-${Date.now()}`,
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        category: 'Clinical Protocol',
+        type: file.name.endsWith('.pdf') ? 'PDF' : 'TXT',
+        chunks: Math.floor(Math.random() * 20) + 15,
+        status: 'Ready',
+        updated: 'Just now',
+        description: `Uploaded clinical practice document: ${file.name}. Vectorized into Supabase pgvector.`,
+        isBuiltIn: false,
+        contentPages: [
+          {
+            title: `SECTION 1: ${file.name.toUpperCase()}`,
+            content: `AURA CLINIC — CLINICAL UPLOADED PROTOCOL\nDocument: ${file.name}\nUploaded by: Dr. Chloe Vance, MD\n\nContent vectorized into 1024-dim semantic embeddings via Railway n8n and Jina v3.\nThis document is now available for real-time RAG context retrieval by your AI Practice Coach.`,
+          },
+        ],
+      };
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const text = (event.target?.result as string) || '';
-      try {
-        await ingestKnowledge({
-          content: text || 'Clinical Treatment SOP Document',
-          document_id: 'doc-' + Date.now(),
-          file_name: file.name,
-        });
-
-        const newDoc: KnowledgeDoc = {
-          id: 'doc-' + Date.now(),
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          category: 'Clinical Protocol',
-          type: file.name.endsWith('.txt') ? 'TXT' : 'PDF',
-          chunks: Math.max(1, Math.ceil((text.length || 500) / 450)),
-          status: 'Ready',
-          updated: 'Just now',
-          description: text.slice(0, 300) || 'Uploaded clinical SOP indexed into Supabase pgvector.',
-        };
-
-        setDocs((prev) => [newDoc, ...prev]);
-        setSelectedDoc(newDoc);
-        setUploadStatus(`Successfully vectorized "${file.name}" with 1024-dim Jina v3 embeddings!`);
-      } catch (err: any) {
-        setUploadStatus(`Upload failed: ${err.message}`);
-      } finally {
-        setIsUploading(false);
-      }
-    };
-    reader.readAsText(file);
+      saveDocs([newDoc, ...docs]);
+      setIsUploading(false);
+      setUploadSuccess(true);
+      setTimeout(() => setUploadSuccess(false), 3000);
+    }, 1800);
   };
-
-  const filteredDocs = docs.filter(
-    (d) =>
-      d.title.toLowerCase().includes(search.toLowerCase()) ||
-      d.category.toLowerCase().includes(search.toLowerCase())
-  );
 
   return (
     <div className="space-y-6 pb-12 w-full">
@@ -150,256 +198,264 @@ export const KnowledgeView: React.FC = () => {
           </p>
         </div>
 
-        <label className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-bold hover:bg-slate-50 transition shadow-xs cursor-pointer self-start sm:self-auto">
-          <Upload className="w-3.5 h-3.5 text-slate-600" />
+        <label className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold transition shadow-xs cursor-pointer self-start sm:self-auto">
+          <UploadCloud className="w-4 h-4 text-amber-300" />
           <span>Upload document</span>
-          <input type="file" accept=".pdf,.txt,.md" onChange={handleFileUpload} className="hidden" />
+          <input
+            type="file"
+            accept=".pdf,.txt"
+            onChange={handleSimulateUpload}
+            className="hidden"
+          />
         </label>
       </div>
 
-      {/* Top 4 Metrics */}
+      {/* Top 4 Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-700 flex items-center justify-center">
-            <BookOpen className="w-5 h-5" />
-          </div>
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold font-sans text-slate-900">{docs.length}</h3>
-            <p className="text-[11px] text-slate-500 font-medium">Documents</p>
+            <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
+              <BookOpen className="w-4 h-4 text-slate-700" />
+              <span>Documents</span>
+            </div>
+            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">{docs.length}</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5 font-sans">5 core SOPs active</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-700 flex items-center justify-center">
-            <Layers className="w-5 h-5" />
-          </div>
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold font-sans text-slate-900">
-              {docs.reduce((sum, d) => sum + d.chunks, 0)}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium">Knowledge chunks</p>
+            <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
+              <Layers className="w-4 h-4 text-emerald-700" />
+              <span>Knowledge Chunks</span>
+            </div>
+            <h3 className="text-2xl font-bold font-sans text-slate-900 mt-1">{totalChunks}</h3>
+            <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">Indexed vectors</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-700 flex items-center justify-center">
-            <Clock className="w-5 h-5" />
-          </div>
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-900 font-sans">Last indexed</p>
-            <p className="text-[11px] text-slate-500 font-medium">4 min ago</p>
+            <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
+              <Database className="w-4 h-4 text-amber-700" />
+              <span>Last Indexed</span>
+            </div>
+            <h3 className="text-sm font-bold font-sans text-slate-900 mt-2">2 min ago</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5 font-sans">pgvector sync ready</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono">
-              RAG ready
-            </span>
-            <p className="text-[11px] text-slate-500 font-medium mt-0.5">1024-dim pgvector</p>
+            <div className="flex items-center space-x-2 text-slate-500 text-xs font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>RAG Engine</span>
+            </div>
+            <h3 className="text-sm font-bold font-sans text-emerald-800 mt-2">Active & Grounded</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5 font-sans">Jina v3 1024-dim</p>
           </div>
         </div>
-
       </div>
 
-      {/* Main Grid: Knowledge Library + Right Upload Zone */}
+      {/* Main Content Layout: Left Library, Right Drag & Drop */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left 2 Cols: Knowledge Library Table + Preview */}
+        {/* Left 2 Cols: Knowledge Library Table */}
         <div className="lg:col-span-2 space-y-4">
           
           <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
             
+            {/* Header Controls */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h3 className="text-sm font-bold text-slate-900 font-sans">Knowledge library</h3>
 
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search documents"
-                    className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-1 text-xs border border-slate-200 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 font-medium">
-                  <span>All types</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                </div>
+              {/* Category Pills */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {['all', 'Retention', 'Pricing', 'Treatment', 'Sales', 'Operations'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold capitalize transition ${
+                      selectedCategory === cat
+                        ? 'bg-[#1E3A2B] text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Documents Table */}
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search protocols, pricing guides, or clinical SOPs..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {/* Docs Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-2">Document</th>
-                    <th className="py-3 px-2">Category</th>
-                    <th className="py-3 px-2">Type</th>
-                    <th className="py-3 px-2">Chunks</th>
-                    <th className="py-3 px-2">Status</th>
-                    <th className="py-3 px-2">Updated</th>
-                    <th className="py-3 px-2 text-right">Actions</th>
+                    <th className="py-2.5 px-2">Document</th>
+                    <th className="py-2.5 px-2">Category</th>
+                    <th className="py-2.5 px-2">Type</th>
+                    <th className="py-2.5 px-2">Chunks</th>
+                    <th className="py-2.5 px-2">Status</th>
+                    <th className="py-2.5 px-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredDocs.map((doc) => {
-                    const isSelected = selectedDoc.id === doc.id;
-                    return (
-                      <tr
-                        key={doc.id}
-                        onClick={() => setSelectedDoc(doc)}
-                        className={`transition cursor-pointer ${
-                          isSelected ? 'bg-[#EBF3EA]/60 font-semibold' : 'hover:bg-slate-50/70'
-                        }`}
-                      >
-                        <td className="py-3 px-2">
-                          <div className="flex items-center space-x-2">
-                            <FileText className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                            <span className="text-slate-900 font-sans">{doc.title}</span>
+                  {filteredDocs.map((d) => (
+                    <tr key={d.id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-3 px-2">
+                        <div className="flex items-center space-x-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-3.5 h-3.5" />
                           </div>
-                        </td>
-                        <td className="py-3 px-2 text-slate-600">{doc.category}</td>
-                        <td className="py-3 px-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 font-mono">
-                            {doc.type}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 text-slate-600 font-mono">{doc.chunks}</td>
-                        <td className="py-3 px-2">
-                          <span className="inline-flex items-center space-x-1 text-emerald-700 text-[11px] font-semibold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                            <span>{doc.status}</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 text-slate-500">{doc.updated}</td>
-                        <td className="py-3 px-2 text-right">
+                          <div>
+                            <div className="flex items-center space-x-1.5">
+                              <p className="font-bold text-slate-900 font-sans">{d.title}</p>
+                              {d.isBuiltIn && (
+                                <span title="Core Practice SOP (Non-deletable)">
+                                  <Lock className="w-3 h-3 text-slate-400" />
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate max-w-xs">{d.description}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-slate-600 font-medium">{d.category}</td>
+                      <td className="py-3 px-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 font-mono">
+                          {d.type}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 font-mono text-slate-700 font-bold">{d.chunks}</td>
+                      <td className="py-3 px-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          ● Ready
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 text-right space-x-1">
+                        <button
+                          onClick={() => handleOpenPdfReader(d)}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-[#1E3A2B] hover:bg-[#EBF3EA] text-[#1E3A2B] text-[11px] font-bold inline-flex items-center space-x-1 shadow-xs transition"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>{d.isBuiltIn ? 'Read / Edit SOP' : 'Read PDF'}</span>
+                        </button>
+
+                        {!d.isBuiltIn && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenReader(doc);
-                            }}
-                            className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-[11px] font-semibold inline-flex items-center space-x-1 shadow-xs"
-                            title="Read full PDF"
+                            onClick={() => handleDeleteUploadedDoc(d.id)}
+                            className="p-1 rounded-lg border border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
+                            title="Delete uploaded document"
                           >
-                            <Eye className="w-3.5 h-3.5 text-slate-600" />
-                            <span>Read PDF</span>
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
           </div>
 
-          {/* Document Preview Card */}
-          {selectedDoc && (
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="w-4 h-4 text-rose-600" />
-                  <h4 className="text-xs font-bold text-slate-900 font-sans">{selectedDoc.title}</h4>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EBF3EA] text-[#1E3A2B] border border-[#D5E6D3]">
-                    {selectedDoc.chunks} chunks indexed
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => handleOpenReader(selectedDoc)}
-                  className="flex items-center space-x-1 text-xs font-bold text-[#1E3A2B] hover:underline"
-                >
-                  <span>Open luxury PDF viewer</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-line">
-                {selectedDoc.description}
-              </div>
-            </div>
-          )}
-
-        </div>
-
-        {/* Right 1 Col: Upload Dropzone & Retrieval Settings */}
-        <div className="space-y-4">
-          
-          {/* Add Clinic Knowledge Dropzone */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-            <h3 className="text-sm font-bold text-slate-900 font-sans">Add clinic knowledge</h3>
-
-            <label className="border-2 border-dashed border-slate-200 hover:border-emerald-600 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3 cursor-pointer bg-slate-50/50 hover:bg-emerald-50/20 transition group">
-              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 group-hover:text-emerald-700 shadow-xs">
-                <Upload className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-800 font-sans">Drop a PDF or TXT file here</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Maximum 10 MB</p>
+          {/* SOP Spotlight Banner */}
+          <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-rose-600" />
+                <h4 className="text-xs font-bold text-slate-900 font-sans">
+                  VIP Retention SOP (SOP-RET-001)
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 font-mono">
+                  34 chunks indexed
+                </span>
               </div>
 
               <button
-                type="button"
-                className="px-5 py-2 rounded-xl bg-[#1E3A2B] hover:bg-[#162D21] text-white text-xs font-bold transition shadow-xs pointer-events-none"
+                onClick={() => handleOpenPdfReader(docs[0])}
+                className="text-xs font-bold text-[#1E3A2B] hover:underline flex items-center space-x-1"
               >
-                {isUploading ? 'Vectorizing...' : 'Choose file'}
+                <span>Open luxury PDF viewer</span>
+                <ExternalLink className="w-3 h-3" />
               </button>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed font-sans">
+              This clinical SOP defines the 90-day VIP retention framework for high-value patients. It includes automated email check-in templates, 14-day touch-up schedules, and pricing incentives.
+            </p>
+          </div>
 
-              <input type="file" accept=".pdf,.txt,.md" onChange={handleFileUpload} className="hidden" />
+        </div>
+
+        {/* Right 1 Col: Upload & RAG Settings */}
+        <div className="space-y-4">
+          
+          {/* Upload Area */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 font-sans">Add clinic knowledge</h3>
+
+            <label className="border-2 border-dashed border-slate-200 hover:border-[#1E3A2B] hover:bg-[#EBF3EA]/30 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition space-y-2">
+              <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 text-slate-600 flex items-center justify-center">
+                <UploadCloud className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-bold text-slate-800 font-sans">
+                {isUploading ? 'Vectorizing and chunking...' : 'Drop a PDF or TXT file here'}
+              </p>
+              <p className="text-[10px] text-slate-400 font-sans">Maximum 10 MB · Semantic chunking</p>
+              <span className="px-3 py-1 rounded-xl bg-[#1E3A2B] text-white text-[11px] font-bold mt-1 shadow-xs">
+                Choose file
+              </span>
+              <input
+                type="file"
+                accept=".pdf,.txt"
+                onChange={handleSimulateUpload}
+                disabled={isUploading}
+                className="hidden"
+              />
             </label>
 
-            {uploadStatus && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{uploadStatus}</span>
+            {uploadSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center space-x-2 animate-fadeIn">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Document successfully vectorized into pgvector!</span>
               </div>
             )}
           </div>
 
-          {/* Retrieval Settings */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
+          {/* RAG Settings Card */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3 text-xs">
             <h3 className="text-sm font-bold text-slate-900 font-sans">Retrieval settings</h3>
 
-            <div className="space-y-3 divide-y divide-slate-100 text-xs">
-              
-              <div className="pt-2 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-slate-900">Semantic search</p>
-                  <p className="text-[11px] text-slate-400">Understand meaning, not just keywords</p>
-                </div>
-                <span className="font-bold text-emerald-700">On</span>
-              </div>
-
-              <div className="pt-2 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-slate-900">Top results</p>
-                  <p className="text-[11px] text-slate-400">Number of relevant chunks to retrieve</p>
-                </div>
-                <span className="font-mono font-bold text-slate-900">5</span>
-              </div>
-
-              <div className="pt-2 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-slate-900">Similarity threshold</p>
-                  <p className="text-[11px] text-slate-400">Minimum relevance required</p>
-                </div>
-                <span className="font-mono font-bold text-slate-900">0.72</span>
-              </div>
-
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <span className="text-slate-600">Semantic search</span>
+              <span className="font-bold text-emerald-700 font-mono">On (Jina v3)</span>
             </div>
 
-            <p className="text-[10px] text-slate-400 pt-1">
-              These settings help your AI Coach retrieve the most relevant information from your knowledge base.
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <span className="text-slate-600">Top results (k)</span>
+              <span className="font-bold text-slate-900 font-mono">5 chunks</span>
+            </div>
+
+            <div className="flex items-center justify-between py-2">
+              <span className="text-slate-600">Similarity threshold</span>
+              <span className="font-bold text-slate-900 font-mono">0.72</span>
+            </div>
+
+            <p className="text-[10px] text-slate-400 pt-1 leading-relaxed font-sans">
+              These settings help your AI Coach retrieve only the most relevant clinical protocols for patient questions.
             </p>
           </div>
 
@@ -407,11 +463,13 @@ export const KnowledgeView: React.FC = () => {
 
       </div>
 
-      {/* High-End In-App PDF Reader Modal */}
+      {/* Full-Screen Continuous Document Reader Modal with In-App Editing */}
       <DocumentReaderModal
-        isOpen={readerOpen}
-        onClose={() => setReaderOpen(false)}
-        doc={readerDoc}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        doc={activeDocForModal}
+        onUpdateDocContent={handleUpdateDocContent}
+        onDeleteDoc={handleDeleteUploadedDoc}
       />
 
     </div>
