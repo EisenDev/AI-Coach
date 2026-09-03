@@ -460,7 +460,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
   ];
 
   return (
-    <div className="flex h-[calc(100vh-2.5rem)] w-full gap-5 overflow-hidden select-none relative">
+    <div className="flex flex-col lg:flex-row h-full w-full gap-4 md:gap-5 overflow-y-auto lg:overflow-hidden select-none relative">
       
       {/* MAIN CHAT WORKSPACE */}
       <div className="flex-1 flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden relative">
@@ -662,7 +662,7 @@ Our practice analytics show a **40% drop-off rate after session 2** across Morph
       </div>
 
       {/* RIGHT SIDEBAR: PINNED & RECENT SESSIONS */}
-      <div className="w-80 flex flex-col space-y-4 flex-shrink-0">
+      <div className="w-full lg:w-80 flex flex-col space-y-4 flex-shrink-0 pb-6 lg:pb-0">
         
         {/* Pinned Sessions */}
         <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3">

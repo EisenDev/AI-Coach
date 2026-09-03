@@ -10,6 +10,7 @@ import {
   CheckSquare,
   HelpCircle,
   ChevronDown,
+  X,
 } from 'lucide-react';
 import { AuraLogo } from './AuraLogo';
 
@@ -19,12 +20,16 @@ interface SidebarProps {
   activeView: ViewType;
   setActiveView: (view: ViewType) => void;
   onOpenHelp: () => void;
+  onCloseMobileDrawer?: () => void;
+  isMobileDrawer?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   setActiveView,
   onOpenHelp,
+  onCloseMobileDrawer,
+  isMobileDrawer = false,
 }) => {
   const navItems: { id: ViewType; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <LayoutGrid className="w-4 h-4" /> },
@@ -35,16 +40,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'actions', label: 'Action Plans', icon: <CheckSquare className="w-4 h-4" /> },
   ];
 
+  const handleSelectNav = (view: ViewType) => {
+    setActiveView(view);
+    if (onCloseMobileDrawer) onCloseMobileDrawer();
+  };
+
   return (
-    <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between h-screen sticky top-0 flex-shrink-0 select-none z-20">
-      
+    <aside
+      className={`bg-white border-r border-slate-200/80 flex flex-col justify-between select-none ${
+        isMobileDrawer
+          ? 'w-72 h-full z-50 shadow-2xl relative'
+          : 'w-64 h-screen sticky top-0 flex-shrink-0 z-20 hidden md:flex'
+      }`}
+    >
       {/* Top Section: Brand Logo & Navigation */}
       <div className="p-6 space-y-7">
         
+        {/* Mobile Close Button (If Drawer) */}
+        {isMobileDrawer && (
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">
+              Menu Navigation
+            </span>
+            <button
+              onClick={onCloseMobileDrawer}
+              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+              title="Close menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Logo & Clinic Title */}
         <div 
           className="flex flex-col items-center text-center space-y-1.5 cursor-pointer group" 
-          onClick={() => setActiveView('overview')}
+          onClick={() => handleSelectNav('overview')}
         >
           <AuraLogo size={46} />
           <h1 className="text-sm font-serif font-bold tracking-widest text-slate-900 uppercase pt-1">
@@ -62,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveView(item.id)}
+                onClick={() => handleSelectNav(item.id)}
                 className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                   isActive
                     ? 'bg-[#EBF3EA] text-[#1E3A2B] font-bold shadow-xs'
@@ -84,11 +115,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         
         {/* Help Button */}
         <button
-          onClick={onOpenHelp}
+          onClick={() => {
+            onOpenHelp();
+            if (onCloseMobileDrawer) onCloseMobileDrawer();
+          }}
           className="w-full flex items-center space-x-3 px-3.5 py-2 rounded-xl text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition"
         >
           <HelpCircle className="w-4 h-4 text-slate-400" />
-          <span className="font-medium text-[13px]">Help</span>
+          <span className="font-medium text-[13px]">Help & Guided Tour</span>
         </button>
 
         {/* User Card */}
