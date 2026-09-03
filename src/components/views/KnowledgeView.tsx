@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { KnowledgeDoc } from '@/types/clinic';
 import { ingestKnowledge } from '@/lib/n8nClient';
+import { DocumentReaderModal } from '../DocumentReaderModal';
 import {
   Upload,
   BookOpen,
@@ -13,6 +14,8 @@ import {
   ChevronDown,
   MoreVertical,
   FileText,
+  Eye,
+  ExternalLink,
 } from 'lucide-react';
 
 const INITIAL_DOCS: KnowledgeDoc[] = [
@@ -79,6 +82,13 @@ export const KnowledgeView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [readerOpen, setReaderOpen] = useState(false);
+  const [readerDoc, setReaderDoc] = useState<KnowledgeDoc | null>(null);
+
+  const handleOpenReader = (docToRead: KnowledgeDoc) => {
+    setReaderDoc(docToRead);
+    setReaderOpen(true);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -155,7 +165,7 @@ export const KnowledgeView: React.FC = () => {
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xl font-bold font-sans text-slate-900">6</h3>
+            <h3 className="text-xl font-bold font-sans text-slate-900">{docs.length}</h3>
             <p className="text-[11px] text-slate-500 font-medium">Documents</p>
           </div>
         </div>
@@ -165,7 +175,9 @@ export const KnowledgeView: React.FC = () => {
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xl font-bold font-sans text-slate-900">184</h3>
+            <h3 className="text-xl font-bold font-sans text-slate-900">
+              {docs.reduce((sum, d) => sum + d.chunks, 0)}
+            </h3>
             <p className="text-[11px] text-slate-500 font-medium">Knowledge chunks</p>
           </div>
         </div>
@@ -270,8 +282,16 @@ export const KnowledgeView: React.FC = () => {
                         </td>
                         <td className="py-3 px-2 text-slate-500">{doc.updated}</td>
                         <td className="py-3 px-2 text-right">
-                          <button className="p-1 rounded text-slate-400 hover:text-slate-700">
-                            <MoreVertical className="w-3.5 h-3.5" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenReader(doc);
+                            }}
+                            className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-[11px] font-semibold inline-flex items-center space-x-1 shadow-xs"
+                            title="Read full PDF"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Read PDF</span>
                           </button>
                         </td>
                       </tr>
@@ -294,6 +314,14 @@ export const KnowledgeView: React.FC = () => {
                     {selectedDoc.chunks} chunks indexed
                   </span>
                 </div>
+
+                <button
+                  onClick={() => handleOpenReader(selectedDoc)}
+                  className="flex items-center space-x-1 text-xs font-bold text-[#1E3A2B] hover:underline"
+                >
+                  <span>Open luxury PDF viewer</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-line">
@@ -378,6 +406,13 @@ export const KnowledgeView: React.FC = () => {
         </div>
 
       </div>
+
+      {/* High-End In-App PDF Reader Modal */}
+      <DocumentReaderModal
+        isOpen={readerOpen}
+        onClose={() => setReaderOpen(false)}
+        doc={readerDoc}
+      />
 
     </div>
   );
