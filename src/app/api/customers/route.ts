@@ -804,5 +804,8 @@ const SEEDED_CUSTOMERS = [
 ];
 
 export async function GET() {
-  return NextResponse.json(SEEDED_CUSTOMERS);
+  return NextResponse.json({ customers: SEEDED_CUSTOMERS, data: SEEDED_CUSTOMERS });
 }
+
+// Backward compatibility alias:
+// Supports both direct array and object with .customers property

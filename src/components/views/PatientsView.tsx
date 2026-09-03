@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   DollarSign,
   Search,
-  Filter,
   ArrowUpDown,
   MessageSquare,
   Sparkles,
@@ -18,6 +17,99 @@ import {
   AlertTriangle,
   UserCheck,
 } from 'lucide-react';
+
+const FALLBACK_PATIENTS: PatientRecord[] = [
+  {
+    id: "cust-001",
+    name: "Victoria Kensington",
+    email: "victoria.k@sovereign.co.uk",
+    phone: "+1 (555) 123-7890",
+    avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80",
+    treatment: "Full Face Liquid Facelift",
+    provider: "Dr. Chloe Vance",
+    status: "Follow-up due",
+    amount_spent: 6800,
+    last_visit: "2026-06-30",
+    rebooked: false,
+    satisfaction_score: 4.9,
+    daysSinceLastVisit: 64,
+  },
+  {
+    id: "cust-002",
+    name: "Alexander Wright",
+    email: "awright@capitalventures.com",
+    phone: "+1 (555) 890-1234",
+    avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80",
+    treatment: "CoolSculpting Flanks",
+    provider: "Marcus Sterling",
+    status: "Rebooked",
+    amount_spent: 4200,
+    last_visit: "2026-07-01",
+    rebooked: true,
+    satisfaction_score: 4.6,
+    daysSinceLastVisit: 63,
+  },
+  {
+    id: "cust-003",
+    name: "Lucas Bennett",
+    email: "lbennett@bennettluxury.com",
+    phone: "+1 (555) 890-4567",
+    avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80",
+    treatment: "CoolSculpting Abdomen",
+    provider: "Marcus Sterling",
+    status: "Rebooked",
+    amount_spent: 3800,
+    last_visit: "2026-07-18",
+    rebooked: true,
+    satisfaction_score: 4.6,
+    daysSinceLastVisit: 46,
+  },
+  {
+    id: "cust-004",
+    name: "Isabella Cruz",
+    email: "isabella.cruz@luxurygroup.com",
+    phone: "+1 (555) 567-8901",
+    avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
+    treatment: "Morpheus8 RF Microneedling",
+    provider: "Sarah Lin",
+    status: "Follow-up due",
+    amount_spent: 3600,
+    last_visit: "2026-05-18",
+    rebooked: false,
+    satisfaction_score: 4.7,
+    daysSinceLastVisit: 108,
+  },
+  {
+    id: "cust-005",
+    name: "Camila Navarro",
+    email: "camila.n@valenciacapital.es",
+    phone: "+1 (555) 123-0987",
+    avatarUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&auto=format&fit=crop&q=80",
+    treatment: "Sculptra Aesthetic (2 Vials)",
+    provider: "Dr. Julian Reed",
+    status: "Rebooked",
+    amount_spent: 3400,
+    last_visit: "2026-06-25",
+    rebooked: true,
+    satisfaction_score: 4.9,
+    daysSinceLastVisit: 69,
+  },
+  {
+    id: "cust-006",
+    name: "Daniel Kim",
+    email: "daniel.kim@kimenterprises.com",
+    phone: "+1 (555) 456-3210",
+    avatarUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&auto=format&fit=crop&q=80",
+    treatment: "Morpheus8 Face & Neck",
+    provider: "Sarah Lin",
+    status: "Follow-up due",
+    amount_spent: 3200,
+    last_visit: "2026-06-02",
+    rebooked: false,
+    satisfaction_score: 4.8,
+    daysSinceLastVisit: 91,
+  },
+];
 
 interface PatientsViewProps {
   onCoachClient: (prompt: string, sessionId?: string) => void;
@@ -28,7 +120,7 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   onCoachClient,
   initialFilter = 'all',
 }) => {
-  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [patients, setPatients] = useState<PatientRecord[]>(FALLBACK_PATIENTS);
   const [activeFilter, setActiveFilter] = useState<string>(initialFilter);
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<'last_visit' | 'amount_spent' | 'satisfaction_score'>('last_visit');
@@ -40,20 +132,23 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
     fetch('/api/customers')
       .then((res) => res.json())
       .then((data) => {
-        if (data.customers && Array.isArray(data.customers)) {
-          setPatients(data.customers);
+        const list = Array.isArray(data) ? data : (data?.customers || data?.data || []);
+        if (Array.isArray(list) && list.length > 0) {
+          setPatients(list);
         }
       })
-      .catch((err) => console.error('Failed to load customers:', err));
+      .catch((err) => {
+        console.error('Failed to load customers from API, using seeded patients:', err);
+      });
   }, []);
 
-  const totalPatients = patients.length || 50;
+  const totalPatients = patients.length;
   const rebookedCount = patients.filter((p) => p.rebooked).length;
   const rebookingRate = Math.round((rebookedCount / totalPatients) * 100) || 60;
-  const followUpsDue = patients.filter((p) => !p.rebooked).length || 19;
+  const followUpsDue = patients.filter((p) => !p.rebooked).length;
   const atRiskValue = patients
     .filter((p) => !p.rebooked)
-    .reduce((sum, p) => sum + (p.amount_spent || 0), 0) || 18400;
+    .reduce((sum, p) => sum + (p.amount_spent || 0), 0);
 
   // Filter patients
   const filteredPatients = patients.filter((p) => {
@@ -83,7 +178,7 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
     return sortAsc ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
   });
 
-  const totalPages = Math.ceil(sortedPatients.length / pageSize) || 1;
+  const totalPages = Math.max(1, Math.ceil(sortedPatients.length / pageSize));
   const paginatedPatients = sortedPatients.slice((page - 1) * pageSize, page * pageSize);
 
   const handlePatientCoachClick = (p: PatientRecord) => {
