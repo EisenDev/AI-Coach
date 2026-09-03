@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { KnowledgeDoc } from '@/types/clinic';
 import {
   X,
@@ -37,6 +38,7 @@ export const DocumentReaderModal: React.FC<DocumentReaderModalProps> = ({
   onUpdateDocContent,
   onDeleteDoc,
 }) => {
+  const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +51,10 @@ export const DocumentReaderModal: React.FC<DocumentReaderModalProps> = ({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const defaultPagesMap: Record<string, { title: string; content: string }[]> = {
     'doc-1': [
@@ -98,103 +104,70 @@ Touch 3 (Day 90): Priority VIP Package Rebooking Incentive
   - 30-day post-treatment contour check.
   - 90-day final photography and cross-consultation for skin tightening.
 
-• Sculptra Aesthetic (Poly-L-Lactic Acid):
-  - 2–3 vials spaced over 8-week intervals.
-  - 18-month collagen stimulation review.
-
-5. PROVIDER DOCUMENTATION & METRICS
-• All patient outreach must be logged in the clinic CRM within 2 hours of completion.
-• Practice 90-Day Retention Target: ≥ 65% across all licensed aesthetic injectors.
-• Monthly churn reviews conducted by Dr. Vance on the 1st Tuesday of every month.`,
+• Sculptra Aesthetic:
+  - 2 to 3 sessions spaced 6 weeks apart.
+  - Annual single-vial collagen maintenance booster.`,
       },
       {
-        title: 'SECTION 3: CONCIERGE OUTREACH TEMPLATES',
+        title: 'SECTION 3: CONCIERGE PATIENT CARE SCRIPTS',
         content: `AURA CLINIC — SOP-RET-001 (PAGE 3)
 
-6. VERIFIED EMAIL OUTREACH SCRIPT (HIGH-VALUE PATIENTS)
+5. CONCIERGE SCRIPTS FOR CLINICAL COORDINATORS
+Email Script for Liquid Facelift Follow-up (Day 60):
+"Dear [Patient Name], Dr. Vance and our clinical team wanted to check in on your results. At the 2-month mark, your dermal integration and subtle contours should look beautifully refreshed. We invite you to schedule a complimentary 10-minute symmetry check with Dr. Vance next week."
 
-Subject: A quick personal note from Dr. Vance regarding your treatment
-
-Dear [Patient Name],
-
-It has been roughly 3 months since your [Treatment Name] at Aura Clinic, and I wanted to personally check in to see how your results are settling.
-
-Around the 90-day mark, our patients love to review their skin longevity, and we often recommend subtle touch-ups or gentle booster treatments to keep your results radiant and fully supported.
-
-I would love to invite you for a complimentary 10-minute skin review at our private suite. We have reserved two priority slots for you:
-- Option A: Thursday at 2:00 PM
-- Option B: Friday at 11:00 AM
-
-Please let our front desk know what works best, or reply directly to this note.
-
-Warm regards,
-Dr. Chloe Vance, MD
-Medical Director · Aura Clinic`,
+Phone Script for 90-Day Lapsed Patients:
+"Hi [Patient Name], this is [Coordinator Name] from Dr. Vance's office at Aura Clinic. Dr. Vance was reviewing patient charts this morning and noted you are approaching the optimal window for your preventative maintenance. We have two priority openings reserved for Dr. Vance's existing patients next Thursday. May I hold one for you?"`,
       },
       {
-        title: 'SECTION 4: STAFF COMPLIANCE & ESCALATION',
+        title: 'SECTION 4: KPI COMPLIANCE & ESCALATION',
         content: `AURA CLINIC — SOP-RET-001 (PAGE 4)
 
-7. PATIENT SATISFACTION ESCALATION WORKFLOW
-• If a patient reports a satisfaction score < 4.5 or expresses concern regarding symmetry/bruising:
-  1. Flag patient in CRM as "Priority Review".
-  2. Clinical coordinator initiates direct telephone call within 4 hours.
-  3. Schedule in-person clinical review with Dr. Vance within 48 hours at no charge.
-
-8. VECTOR RAG RETRIEVAL METADATA
-• Embedding Model: Jina v3 (1024 dimensions)
-• Chunk Size: 450 characters (50 character overlap)
-• Supabase pgvector table: public.knowledge_chunks
-• Storage Bucket: clinic-sops`,
+6. PRACTICE TARGETS & AUDIT METRICS
+• Minimum 90-Day Rebooking Target: 65% across all injectable patients.
+• VIP Diamond Retention Rate: 85% for patients spending > $5,000 annually.
+• Weekly Practice Review: Every Monday at 8:30 AM, practice director reviews at-risk patient pipeline.`,
       },
     ],
     'doc-2': [
       {
-        title: 'SECTION 1: 2026 INJECTABLES PRICE SCHEDULE',
-        content: `AURA CLINIC — 2026 COMPREHENSIVE PRICING & SYRINGE SCHEDULE
-Confidential Practice Document | Effective: February 1, 2026
-Supervising Physician: Dr. Chloe Vance, MD
+        title: 'SECTION 1: 2026 INJECTABLES PRICING & BUNDLES',
+        content: `AURA CLINIC — OFFICIAL 2026 PRICING SCHEDULE
+Effective Date: January 1, 2026 | Approved by: Dr. Chloe Vance, MD
 
-1. NEUROTOXINS & WRINKLE RELAXERS
-• Botox Cosmetic (Allergan): $15 per unit (Typical treatment: 30–64 units = $450 – $960)
-• Dysport (Galderma): $5.50 per unit (Conversion factor 2.8:1)
-• Xeomin (Merz): $14 per unit
-• Full Face Refresh Package (Upper face + DAO + Platysma bands): $1,400 flat rate
+1. NEUROTOXINS
+• Botox Cosmetic (Allergan): $15 per unit
+  - Average Treatment: 30–64 units ($450–$960)
+  - Glabella (11s): 20–25 units ($300–$375)
+  - Forehead: 10–20 units ($150–$300)
+  - Crow's Feet: 12–24 units ($180–$360)
+  - Masseter Slimming: 40–60 units ($600–$900)
+• Dysport (Galderma): $5.50 per unit (2.8:1 conversion)
 
 2. DERMAL FILLERS & BIOSTIMULATORS
-• Juvederm Voluma XC / Volux: $950 per 1.0 mL syringe (2-syringe bundle: $1,750)
-• Restylane Kysse / Contour / Defyne: $850 per syringe
-• Sculptra Aesthetic (Poly-L-Lactic Acid): $1,100 per vial (2-vial starter protocol: $2,000)
-• Full Face Liquid Facelift Protocol: $4,800 – $6,800 (includes midface structural support, tear troughs, jawline contouring, and 50 units neurotoxin).`,
-      },
-      {
-        title: 'SECTION 2: ENERGY DEVICES & BODY CONTOURING',
-        content: `AURA CLINIC — 2026 PRICING SCHEDULE (PAGE 2)
+• Juvederm Ultra Plus XC (1.0 mL): $850 / syringe
+• Juvederm Voluma XC (Cheeks/Chin): $950 / syringe (2 Syringes: $1,750)
+• Restylane Kysse (Lip Definition): $850 / syringe
+• Sculptra Aesthetic (Poly-L-Lactic Acid): $1,100 / vial (2-Vial Protocol: $2,000)
 
-3. ENERGY-BASED DEVICES & BODY CONTOURING
-• Morpheus8 RF Microneedling (Full Face & Neck): $1,200 per session | 3-Pack: $3,100
-• CoolSculpting Elite: $750 per cycle | 4-Cycle Abdomen Package: $2,600 | 8-Cycle Full Body: $4,800
-• Laser Genesis Skin Therapy: $350 per session | 6-Session Package: $1,800
-
-4. CLINICAL FINANCING & VIP MEMBERSHIP
-• Aura Platinum Tier: $199/month accrual with 15% discount on all injectables and complimentary monthly HydraFacial.
-• 0% APR 12-month patient financing available via CareCredit and PatientFi.`,
+3. SIGNATURE CLINICAL PACKAGES
+• Full Face Liquid Facelift: $4,800–$6,800
+• Executive Bro-tox Annual Pass: $1,400 / quarter`,
       },
     ],
     'doc-3': [
       {
         title: 'SECTION 1: NEUROTOXIN & FILLER REBOOKING PROTOCOL',
-        content: `AURA CLINIC — CLINICAL REBOOKING PROTOCOL: INJECTABLES
-Supervising Physician: Dr. Chloe Vance, MD
+        content: `AURA CLINIC — INJECTABLE REBOOKING SOP
+Document ID: SOP-INJ-002 | Effective: Feb 2026
 
-1. NEUROTOXIN REBOOKING INTERVALS
-• Glabella, Forehead, and Crow's Feet: 12–14 weeks optimal duration.
-• Masseter Slimming / Bruxism: 16–20 weeks maintenance interval.
-• Trapezius ("Barbie Tox"): 16–24 weeks duration.
+1. OPTIMAL CLINICAL REBOOKING WINDOWS
+• Neurotoxins (Botox / Dysport): Rebook at 10–14 weeks post-treatment.
+• Dermal Fillers (Hyaluronic Acid): Rebook at 6–9 months for assessment.
+• Biostimulators (Sculptra): Rebook at 6 weeks for session 2, 12 months for annual booster.
 
-2. COMBINATION THERAPIES
-• Always recommend dermal filler assessment alongside neurotoxin at the 90-day mark.
-• Dermal filler hydration maintenance with skin boosters improves patient satisfaction by 38%.`,
+2. PRE-BOOKING AT CHECKOUT (MANDATORY)
+Patient Care Coordinators must schedule the next maintenance appointment during checkout before the patient leaves the clinic.`,
       },
     ],
     'doc-4': [
@@ -251,7 +224,7 @@ Supervising Physician: Dr. Chloe Vance, MD
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isEditing, onClose]);
 
-  if (!isOpen || !doc) return null;
+  if (!isOpen || !doc || !mounted) return null;
 
   const isBuiltInDoc = doc.isBuiltIn !== false; // doc-1 through doc-5 are built-in
 
@@ -278,6 +251,12 @@ Supervising Physician: Dr. Chloe Vance, MD
     }
   };
 
+  const handlePageContentChange = (pageIndex: number, newContent: string) => {
+    const updated = [...editablePages];
+    updated[pageIndex] = { ...updated[pageIndex], content: newContent };
+    setEditablePages(updated);
+  };
+
   const handleSaveProtocol = () => {
     if (onUpdateDocContent && doc) {
       onUpdateDocContent(doc.id, editablePages);
@@ -298,44 +277,44 @@ Supervising Physician: Dr. Chloe Vance, MD
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-[#121212] text-white flex flex-col w-screen h-screen overflow-hidden select-none animate-fadeIn">
+  return createPortal(
+    <div className="fixed inset-0 z-[999999] bg-[#121212] text-white flex flex-col w-screen h-screen overflow-hidden select-none animate-fadeIn">
       
       {/* Top Luxury Toolbar */}
-      <div className="h-16 px-6 bg-[#1F1F1F] border-b border-neutral-800 flex items-center justify-between z-20 flex-shrink-0 shadow-md">
+      <div className="h-16 px-4 sm:px-6 bg-[#1F1F1F] border-b border-neutral-800 flex items-center justify-between z-20 flex-shrink-0 shadow-md">
         
         {/* Left: Document Info & Status Badge */}
-        <div className="flex items-center space-x-3.5">
+        <div className="flex items-center space-x-3.5 min-w-0">
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-neutral-800 text-neutral-300 hover:text-white transition"
+            className="p-2 rounded-full hover:bg-neutral-800 text-neutral-300 hover:text-white transition flex-shrink-0"
             title="Close viewer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-rose-950/80 border border-rose-800/60 text-rose-300 flex items-center justify-center">
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-rose-950/80 border border-rose-800/60 text-rose-300 flex items-center justify-center flex-shrink-0">
               <FileText className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-sm font-semibold text-white tracking-wide">
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2 truncate">
+                <h3 className="text-sm font-semibold text-white tracking-wide truncate">
                   {doc.title}.pdf
                 </h3>
                 {isBuiltInDoc ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 border border-amber-700 text-amber-300 font-mono flex items-center space-x-1">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 border border-amber-700 text-amber-300 font-mono flex items-center space-x-1 flex-shrink-0">
                     <Lock className="w-3 h-3 text-amber-400" />
                     <span>Core Practice SOP</span>
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-800 border border-neutral-700 text-neutral-300 font-mono">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-800 border border-neutral-700 text-neutral-300 font-mono flex-shrink-0">
                     User Uploaded
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-neutral-400 font-sans mt-0.5">
-                {doc.category} · Vectorized in pgvector · {doc.chunks} Semantic Chunks
+              <p className="text-[11px] text-neutral-400 font-sans mt-0.5 truncate">
+                {doc.category} · Vectorized in pgvector · {doc.chunks} Chunks
               </p>
             </div>
           </div>
@@ -363,7 +342,7 @@ Supervising Physician: Dr. Chloe Vance, MD
         </div>
 
         {/* Right Tools: Edit, Save, Delete (if uploaded), Print, Download */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-shrink-0">
           
           {/* Edit Protocol Button (Available for Built-in Core SOPs) */}
           {isBuiltInDoc && (
@@ -381,56 +360,57 @@ Supervising Physician: Dr. Chloe Vance, MD
                   : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
               }`}
             >
-              {isEditing ? <Save className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+              {isEditing ? <Save className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5 text-amber-400" />}
               <span>{isEditing ? 'Save Protocol' : 'Edit Protocol'}</span>
             </button>
           )}
 
-          {/* Delete Button (Only for User-Uploaded Docs) */}
+          {/* Delete Button for User Uploaded Documents */}
           {!isBuiltInDoc && onDeleteDoc && (
             <button
               onClick={() => {
-                if (confirm(`Delete uploaded document "${doc.title}"?`)) {
+                if (confirm(`Delete "${doc.title}" from knowledge base?`)) {
                   onDeleteDoc(doc.id);
                   onClose();
                 }
               }}
-              className="p-2 rounded-full hover:bg-rose-950/80 text-neutral-400 hover:text-rose-400 transition"
+              className="px-3 py-1.5 rounded-full bg-rose-950/80 hover:bg-rose-900 border border-rose-800/60 text-rose-300 text-xs font-semibold flex items-center space-x-1.5 transition"
               title="Delete uploaded document"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Delete</span>
             </button>
           )}
 
           <button
             onClick={() => setIsBookmarked(!isBookmarked)}
-            className={`p-2 rounded-full hover:bg-neutral-800 transition ${
-              isBookmarked ? 'text-amber-400' : 'text-neutral-400 hover:text-white'
+            className={`p-2 rounded-full transition ${
+              isBookmarked ? 'text-amber-400 bg-amber-950/50' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
             }`}
-            title="Bookmark"
+            title="Bookmark Protocol"
           >
             <Bookmark className="w-4 h-4" />
           </button>
 
           <button
             onClick={() => window.print()}
-            className="p-2 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
-            title="Print PDF"
+            className="p-2 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition hidden sm:inline-flex"
+            title="Print SOP"
           >
             <Printer className="w-4 h-4" />
           </button>
 
           <button
             onClick={handleDownload}
-            className="p-2 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
-            title="Download text"
+            className="p-2 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
+            title="Download Document"
           >
             <Download className="w-4 h-4" />
           </button>
 
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-full bg-[#1E3A2B] hover:bg-[#284D39] text-white text-xs font-semibold transition ml-2 border border-emerald-700 shadow-sm"
+            className="px-3.5 py-1.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium border border-neutral-700 transition"
           >
             Done
           </button>
@@ -438,104 +418,98 @@ Supervising Physician: Dr. Chloe Vance, MD
 
       </div>
 
-      {/* Main Continuous Document Workspace */}
-      <div className="flex-1 relative flex overflow-hidden bg-[#242424]">
+      {/* Main Continuous PDF Scroll Workspace */}
+      <div className="flex-1 flex overflow-hidden relative">
         
-        {/* Continuous Scrollable PDF Pages Stream */}
+        {/* Scrollable Center Pages Canvas */}
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-6 py-10 flex flex-col items-center gap-8 scroll-smooth"
+          className="flex-1 h-full overflow-y-auto overflow-x-hidden bg-[#262626] flex flex-col items-center py-10 px-4 space-y-8 scroll-smooth"
         >
           {editablePages.map((page, idx) => (
             <div
               key={idx}
-              ref={(el) => { pageRefs.current[idx] = el; }}
-              style={{
-                transform: `scale(${zoomLevel / 100})`,
-                transformOrigin: 'top center',
+              ref={(el) => {
+                pageRefs.current[idx] = el;
               }}
-              className="bg-white text-slate-900 rounded-lg shadow-2xl border border-neutral-300 w-full max-w-4xl min-h-[950px] p-12 sm:p-16 flex flex-col justify-between transition-transform duration-150 relative"
+              style={{
+                width: `${Math.min(840 * (zoomLevel / 100), 960)}px`,
+                minHeight: '1050px',
+              }}
+              className="bg-white text-slate-900 shadow-2xl rounded-sm p-12 sm:p-16 flex flex-col justify-between relative transition-all duration-150 border border-neutral-300"
             >
-              {/* Page Header */}
-              <div>
-                <div className="border-b border-slate-200 pb-4 mb-6 flex items-center justify-between">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={page.title}
-                      onChange={(e) => {
-                        const updated = [...editablePages];
-                        updated[idx].title = e.target.value;
-                        setEditablePages(updated);
-                      }}
-                      className="text-xs font-mono uppercase tracking-widest text-slate-700 border-b border-amber-500 bg-amber-50/50 px-2 py-1 w-2/3 focus:outline-none"
-                    />
-                  ) : (
-                    <span className="text-[11px] font-mono uppercase tracking-widest text-slate-400">
-                      {page.title}
-                    </span>
-                  )}
+              {/* Header inside Paper */}
+              <div className="border-b border-slate-200 pb-4 flex items-center justify-between">
+                <span className="text-[10px] font-mono tracking-widest text-slate-400 uppercase">
+                  {page.title}
+                </span>
+                <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center space-x-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Supabase pgvector Verified</span>
+                </span>
+              </div>
 
-                  <span className="text-[11px] font-mono text-emerald-800 font-semibold flex items-center space-x-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Supabase pgvector Verified</span>
-                  </span>
-                </div>
-
-                {/* Body Content / Inline Editable Area */}
+              {/* Page Content Body (Editable when Dr. Vance clicks 'Edit Protocol') */}
+              <div className="flex-1 py-6">
                 {isEditing ? (
-                  <textarea
-                    value={page.content}
-                    onChange={(e) => {
-                      const updated = [...editablePages];
-                      updated[idx].content = e.target.value;
-                      setEditablePages(updated);
-                    }}
-                    rows={22}
-                    className="w-full text-xs sm:text-sm text-slate-900 leading-relaxed font-mono bg-amber-50/30 border border-amber-300 rounded-xl p-4 focus:outline-none focus:border-amber-600 resize-y"
-                  />
-                ) : (
-                  <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-sans whitespace-pre-line select-text">
-                    {page.content}
+                  <div className="space-y-3 h-full flex flex-col">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                      <Edit3 className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <span>Live Clinical Editor: Edits will automatically re-index semantic chunks in pgvector.</span>
+                    </div>
+                    <textarea
+                      value={page.content}
+                      onChange={(e) => handlePageContentChange(idx, e.target.value)}
+                      rows={26}
+                      className="w-full flex-1 p-4 rounded-xl border border-slate-300 font-mono text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-amber-50/20 leading-relaxed resize-none"
+                    />
                   </div>
+                ) : (
+                  <pre className="font-sans text-xs sm:text-[13px] text-slate-800 leading-relaxed whitespace-pre-wrap font-medium">
+                    {page.content}
+                  </pre>
                 )}
               </div>
 
-              {/* Page Footer */}
-              <div className="border-t border-slate-100 pt-6 mt-12 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                <span>Aura Clinic Clinical Standard Operating Procedures</span>
+              {/* Footer inside Paper */}
+              <div className="border-t border-slate-200 pt-4 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                <span>AURA CLINIC CONFIDENTIAL · MEDICAL PRACTICE INTELLIGENCE</span>
                 <span>Page {idx + 1} of {editablePages.length}</span>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Floating WhatsApp-Style Page Number Pill on Scrollbar Side */}
-        <div className="absolute right-6 bottom-8 z-30 flex flex-col items-center gap-1.5 bg-[#1F1F1F]/95 backdrop-blur border border-neutral-700 shadow-2xl rounded-2xl p-2 text-white select-none">
+        {/* WhatsApp-Style Floating Scrollbar Navigation Bar */}
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col items-center bg-[#1A1A1A]/90 backdrop-blur-md border border-neutral-700/80 rounded-2xl p-2.5 shadow-2xl space-y-3 z-30">
           
-          {/* Page Counter */}
-          <div className="px-2.5 py-1 text-center">
-            <span className="text-xs font-mono font-bold block">{currentPage}</span>
-            <span className="text-[10px] text-neutral-400 font-mono block">/ {editablePages.length}</span>
+          {/* Current Page Pill */}
+          <div className="px-2.5 py-1 rounded-xl bg-neutral-800 border border-neutral-700 text-center">
+            <span className="text-xs font-bold text-white font-mono block leading-tight">
+              {currentPage}
+            </span>
+            <span className="text-[9px] text-neutral-400 font-mono block leading-tight">
+              / {editablePages.length}
+            </span>
           </div>
 
           <div className="w-full h-px bg-neutral-700" />
 
-          {/* Up/Down Page Jump */}
+          {/* Up / Down Controls */}
           <button
-            disabled={currentPage <= 1}
             onClick={() => scrollToPage(Math.max(1, currentPage - 1))}
-            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed"
+            disabled={currentPage === 1}
+            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 disabled:opacity-30 transition"
             title="Previous Page"
           >
             <ChevronUp className="w-4 h-4" />
           </button>
 
           <button
-            disabled={currentPage >= editablePages.length}
             onClick={() => scrollToPage(Math.min(editablePages.length, currentPage + 1))}
-            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed"
+            disabled={currentPage === editablePages.length}
+            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 disabled:opacity-30 transition"
             title="Next Page"
           >
             <ChevronDown className="w-4 h-4" />
@@ -543,18 +517,18 @@ Supervising Physician: Dr. Chloe Vance, MD
 
           <div className="w-full h-px bg-neutral-700" />
 
-          {/* Zoom In/Out */}
+          {/* Zoom Controls */}
           <button
             onClick={() => setZoomLevel((z) => Math.min(150, z + 10))}
-            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300"
+            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 transition"
             title="Zoom In"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
 
           <button
-            onClick={() => setZoomLevel((z) => Math.max(75, z - 10))}
-            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300"
+            onClick={() => setZoomLevel((z) => Math.max(70, z - 10))}
+            className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-300 transition"
             title="Zoom Out"
           >
             <ZoomOut className="w-4 h-4" />
@@ -564,6 +538,7 @@ Supervising Physician: Dr. Chloe Vance, MD
 
       </div>
 
-    </div>
+    </div>,
+    document.body
   );
 };
